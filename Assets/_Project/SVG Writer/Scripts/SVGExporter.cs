@@ -4,7 +4,7 @@ using UnityEngine;
 using System.IO;
 
 public class SVGExporter : MonoBehaviour
-{
+{    
     struct Line
     {
         public bool newLine;
@@ -12,34 +12,46 @@ public class SVGExporter : MonoBehaviour
         public Vector2 p1;
     }
 
-    List<Line> lineList = new List<Line>();
-
-    int width = 800;
-    int height = 800;
-
-    Vector2 midPoint => new Vector2(width * .5f, height * .5f);
-
+    //
+    // VARIABLES
+    //
     public Texture2D tex;
+    public float pixelToWorldScalar = .01f;
 
-    // Start is called before the first frame update
-    void Start()
-    {
-        
-    }
+    public Transform imageQuad;
+    public Material imageQuadMat;
 
-    // Update is called once per frame
-    void Update()
-    {
-        
-    }
+    [Header("SCAN LINE")]
+    public int uSampleCount = 1000;
+    public int vSampleCount = 100;
+    public float[] cutoffLevels = new float[2] { .9f, .5f };
+    public float[] maxLineLengths = new float[2] { 1, 1 };
 
+    [Header("CONTOURS")]
+    public int maxContours = 1;
 
+    [Header("DEBUG")]
     public Vector3 debugPos;
+    public bool debugPrint = false;
+
+
+
+    private Vector2 pixelMidpoint => new Vector2(tex.width * .5f, tex.height * .5f);
+    private Vector2 pixelMidpointWorldSpace => new Vector2(tex.width * .5f, tex.height * .5f) * pixelToWorldScalar;
+    private List<Line> lineList = new List<Line>();
+
+
+    //
+    // VECTOR GENERATION FUNCTIONS
+    //
     public void ContourTrace()
     {
         bool[,] checkedPixels = new bool[tex.width, tex.height];
         bool[,] hasNode = new bool[tex.width, tex.height];
         float contourCutoff = .5f;
+
+        int debugContourSampleCount = 0;
+        int debugMaxSamplesPerContour = 40000;
 
         Vector2[] neighborsClockwize = new Vector2[8]
         {
@@ -60,9 +72,8 @@ public class SVGExporter : MonoBehaviour
         {
             for (int y = 1; y < tex.height; y++)
             {
-                if (contourCount > 5)
-                {
-                    print("here 2");
+                if (contourCount >= maxContours)
+                {                    
                     return;
                 }
 
@@ -70,9 +81,14 @@ public class SVGExporter : MonoBehaviour
                 //
                 if (pixelCols[x + y * tex.width].r < contourCutoff)
                 {
+                    debugContourSampleCount = 0;
+                    int maxPrevPixelSamples = 4;
+                    int prevPixelSampleCounter = 0;
+
                     // TRACE CONTOUR
                     //
                     Vector2 startPix = new Vector2(x, y);
+                    Vector2 prevContourPix = new Vector2(x, y);
                     Vector2 currentContourPix = new Vector2(x, y);
                     bool endContourSearchConditionMet = false;
 
@@ -81,111 +97,109 @@ public class SVGExporter : MonoBehaviour
 
 
                     // DEBUG
-                    //
-                    Debug.Log("*************Found border pixel: " + currentContourPix);
+                    //                  
+                    if (debugPrint) Debug.Log("*************FOUND BORDER PIXEL: " + currentContourPix);
                     debugPos = startPix;
-
-                    print("here 0");
-                    while (!endContourSearchConditionMet)
+                   
+                   
+                    // SEARCH ADJASCENT PIXELS CLOCKWISE UNTIL FINDING A BLACK PIXEL THAT COMES AFTER A WHITE PIXEL
+                    //                 
+                    int neighborIndex = 0;
+                    for (int i = 0; i < neighborsClockwize.Length; i++)
                     {
-                              
-                        print("here 1");
-                        for (int j = 0; j < 90; j++)
+                        // DEBUG
+                        debugContourSampleCount++;
+                        if (debugContourSampleCount > debugMaxSamplesPerContour)
                         {
+                            if (debugPrint) Debug.Log("Max samples per contour reached");
+                            break;
+                        }
 
-                            // SEARCH ADJASCENT PIXELS CLOCKWISE UNTIL FINDING A BLACK PIXEL THAT COMES AFTER A WHITE PIXEL
-                            //                 
-                            bool foundContourPixelInNeighbors = false;
-                            int neighborIndex = 0;
-                            for (int i = 0; i < neighborsClockwize.Length; i++)
+                        neighborIndex %= neighborsClockwize.Length;
+                        int searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;
+                        int searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;
+
+                        if (searchX < 0 || searchY < 0 || searchX == tex.width || searchY == tex.height)
+                            continue;
+
+                        if (debugPrint) print($"Searching: {searchX} {searchY} @   nIndex:  {neighborIndex}");
+
+                        if(prevContourPix == new Vector2(searchX, searchY))
+                        {
+                            prevPixelSampleCounter++;
+
+                            if (prevPixelSampleCounter >= maxPrevPixelSamples)
                             {
-                                neighborIndex %= neighborsClockwize.Length;
-                                int searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;
-                                int searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;
-
-                                if (searchX < 0 || searchY < 0 || searchX == tex.width || searchY == tex.height)
-                                    continue;
-
-                                print($"Searching: {searchX} {searchY} @   nIndex:  {neighborIndex}");
-
-                                // SET FOUND PIXEL TO CURRENT POS AND ITERATE
-                                //
-                                if (tex.GetPixel(searchX, searchY).r < contourCutoff)
-                                {
-                                    print($"FOUND: {searchX} {searchY} @   nIndex:  {neighborIndex}");
-
-                                    switch (neighborIndex)
-                                    {
-                                        case 0:
-                                            neighborIndex = 6;
-                                            break;
-                                        case 1:
-                                            neighborIndex = 6;
-                                            break;
-                                        case 2:
-                                            neighborIndex = 0;
-                                            break;
-                                        case 3:
-                                            neighborIndex = 0;
-                                            break;
-                                        case 4:
-                                            neighborIndex = 2;
-                                            break;
-                                        case 5:
-                                            neighborIndex = 2;
-                                            break;
-                                        case 6:
-                                            neighborIndex = 4;
-                                            break;
-                                        case 7:
-                                            neighborIndex = 4;
-                                            break;
-                                    }
-
-                                    i = 0;
-                                   
-                                    foundContourPixelInNeighbors = true;
-                                    Vector2 newContourPixel = new Vector2(searchX, searchY);
-                                    newLine.p1 = newContourPixel;
-                                    lineList.Add(newLine);
-
-                                    
-
-                                    currentContourPix = newContourPixel;
-                                    newLine = new Line() { p0 = currentContourPix, newLine = false };
-
-                                    if (currentContourPix == startPix)
-                                    {
-                                        endContourSearchConditionMet = true;
-                                        contourCount++;
-                                        print("BACK TO START END CONTOUR");
-                                    }
-                                }
-                                else
-                                {
-                                    neighborIndex++;
-                                }
+                                if (debugPrint) Debug.Log("********    Sampling previous pixel, Breaking");
+                                break;
                             }
-                            contourCount++;
-
-                            if (!foundContourPixelInNeighbors)
+                            else
                             {
-                                print("No neighbor pixel found");
-                                endContourSearchConditionMet = true;
+                                if (debugPrint) Debug.Log("Sampling previous pixel    count: " + prevPixelSampleCounter);
                             }
                         }
-                        endContourSearchConditionMet = true;
-                    }  
-                    
+
+                        // SET FOUND PIXEL TO CURRENT POS AND ITERATE
+                        //
+                        if (tex.GetPixel(searchX, searchY).r < contourCutoff)
+                        {
+                            if (debugPrint) print($"-------   FOUND: {searchX} {searchY} @   nIndex:  {neighborIndex}");
+
+                            switch (neighborIndex)
+                            {
+                                case 0:
+                                    neighborIndex = 6;
+                                    break;
+                                case 1:
+                                    neighborIndex = 6;
+                                    break;
+                                case 2:
+                                    neighborIndex = 0;
+                                    break;
+                                case 3:
+                                    neighborIndex = 0;
+                                    break;
+                                case 4:
+                                    neighborIndex = 2;
+                                    break;
+                                case 5:
+                                    neighborIndex = 2;
+                                    break;
+                                case 6:
+                                    neighborIndex = 4;
+                                    break;
+                                case 7:
+                                    neighborIndex = 4;
+                                    break;
+                            }
+
+                            i = 0;                                   
+                            Vector2 newContourPixel = new Vector2(searchX, searchY);
+                            newLine.p1 = newContourPixel;
+                            lineList.Add(newLine);
+
+
+                            prevContourPix = currentContourPix;
+                            currentContourPix = newContourPixel;
+                            newLine = new Line() { p0 = currentContourPix, newLine = false };
+
+                            if (currentContourPix == startPix)
+                            {
+                                if (debugPrint) print("BACK TO START END CONTOUR");
+                                break;
+                            }
+                        }
+                        else
+                        {
+                            neighborIndex++;
+                        }
+                    }
+                    contourCount++;        
                 }
             }            
         }
     }
-
-    public int uSampleCount = 1000;
-    public int vSampleCount = 100;
-    public float[] cutoffLevels = new float[2] { .9f, .5f };
-    public float[] maxLineLengths = new float[2] { 1, 1 };
+     
     void TextureScanLines(int uCount, int vCount, float[] cutoffLevels)
     {
         int uSampleSteps = uCount;
@@ -260,7 +274,6 @@ public class SVGExporter : MonoBehaviour
         }
     }
 
-  
     void GenerateRandomLines()
     {
         lineList = new List<Line>();
@@ -269,14 +282,19 @@ public class SVGExporter : MonoBehaviour
         {
             Line newLine = new Line()
             {
-                p0 = midPoint + Random.insideUnitCircle * radius,
-                p1 = midPoint + Random.insideUnitCircle * radius
+                p0 = pixelMidpoint + Random.insideUnitCircle * radius,
+                p1 = pixelMidpoint + Random.insideUnitCircle * radius
             };
 
             lineList.Add(newLine);
         }
     }
 
+
+
+    //
+    // CREATE & WRITE VECTOR TO FILE
+    //
     [ContextMenu("Test")]
     public void WriteString()
     {
@@ -329,11 +347,33 @@ public class SVGExporter : MonoBehaviour
         //Debug.Log(asset.text);
     }
 
+
+
+
+    //
+    // DEBUG
+    //
     private void OnDrawGizmos()
     {
+        // DRAW FRAME
+        //
+        Vector3 topLeft = Vector3.up * tex.height * pixelToWorldScalar;        
+        Vector3 btmRight = Vector3.right * tex.height * pixelToWorldScalar;
+        Vector3 topRight = topLeft + btmRight;
+        Gizmos.DrawLine(Vector3.zero, topLeft);
+        Gizmos.DrawLine(topLeft, topRight);
+        Gizmos.DrawLine(topRight, btmRight);
+        Gizmos.DrawLine(btmRight, Vector3.zero);
+
+        // POSITION IMAGE QUAD
+        //
+        imageQuad.transform.position = pixelMidpointWorldSpace;
+        imageQuad.transform.localScale = new Vector3(tex.width * pixelToWorldScalar, tex.height * pixelToWorldScalar);
+
+
         Gizmos.DrawSphere(debugPos * .01f, .1f);
 
-        if(lineList != null)
+        if (lineList != null)
         {
             for (int i = 0; i < lineList.Count; i++)
             {

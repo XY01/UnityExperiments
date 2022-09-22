@@ -150,8 +150,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 265416163}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalPosition: {x: -2.8400002, y: -2.0900002, z: 0}
+  m_LocalScale: {x: 10.24, y: 10.24, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 419651657}
@@ -483,8 +483,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 550fa89749927c44984c63dfc129769b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tex: {fileID: 2800000, guid: 8c2bc33d9440b9646a38d1502225aeea, type: 3}
-  debugPos: {x: 132, y: 836, z: 0}
+  tex: {fileID: 2800000, guid: d74462df8f8c62c41bfebe0e7f77180a, type: 3}
+  pixelToWorldScalar: 0.01
+  imageQuad: {fileID: 265416164}
+  imageQuadMat: {fileID: 2100000, guid: d087984ccba14b843a7b9f3a0038ae38, type: 2}
   uSampleCount: 1000
   vSampleCount: 100
   cutoffLevels:
@@ -493,6 +495,9 @@ MonoBehaviour:
   maxLineLengths:
   - 1
   - 1
+  maxContours: 1
+  debugPos: {x: 140, y: 828, z: 0}
+  debugPrint: 1
 --- !u!4 &419651657
 Transform:
   m_ObjectHideFlags: 0
@@ -501,7 +506,7 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 419651655}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalPosition: {x: 7.96, y: 7.21, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
