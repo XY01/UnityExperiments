@@ -32,12 +32,11 @@ public class SVGExporter : MonoBehaviour
     public Transform imageQuad;
     public Material imageQuadMat;
 
+    public Vector2[] valueRanges = new Vector2[2] {new Vector2(0,.5f), new Vector2(.5f, 1) };
+
     [Header("SCAN LINE")]
     public bool generateScanLines = false;
-    public int uSampleCount = 1000;
-    public int vSampleCount = 100;
-    public float[] cutoffLevels = new float[2] { .9f, .5f };
-    public float[] maxLineLengths = new float[2] { 1, 1 };
+    public float[] densityLevels = new float[2] { .9f, .1f };
 
     [Header("CONTOURS")]
     public bool generateContours = true;
@@ -66,9 +65,8 @@ public class SVGExporter : MonoBehaviour
     //
     // VECTOR GENERATION FUNCTIONS
     //
-    public void ContourTrace()
-    {
-        contours = new List<Contour>();
+    public void ContourTrace(float valueCutoff)
+    {       
         int[,] contourPixels = new int[tex.width, tex.height];
         int debugContourSampleCount;
         int debugMaxSamplesPerContour = 40000;
@@ -98,7 +96,7 @@ public class SVGExporter : MonoBehaviour
         };
 
         Color[] pixelCols = tex.GetPixels();     
-        bool isBorderPixel = pixelCols[0].r < contourCutoff;
+        bool isBorderPixel = pixelCols[0].r < valueCutoff;
         for (int x = 0; x < tex.width; x++)
         {
             for (int y = 0; y < tex.height; y++)
@@ -112,12 +110,12 @@ public class SVGExporter : MonoBehaviour
                 debugPos = new Vector2(x, y);
 
                 bool prevIsBorderPix = isBorderPixel;
-                isBorderPixel = pixelCols[x + y * tex.width].r < contourCutoff; ;
+                isBorderPixel = pixelCols[x + y * tex.width].r < valueCutoff; ;
 
                 //
                 // FIND PIXEL THAT CROSSES A BORDER
                 //
-                if (isBorderPixel && !prevIsBorderPix && pixelCols[x + y * tex.width].r < contourCutoff &&
+                if (isBorderPixel && !prevIsBorderPix && pixelCols[x + y * tex.width].r < valueCutoff &&
                     contourPixels[x, y] == 0)
                 {
                     debugContourSampleCount = 0;
@@ -193,7 +191,7 @@ public class SVGExporter : MonoBehaviour
 
                         // SET FOUND PIXEL TO CURRENT POS AND ITERATE
                         //
-                        if (tex.GetPixel(searchX, searchY).r < contourCutoff)
+                        if (tex.GetPixel(searchX, searchY).r < valueCutoff)
                         {
                             if (debugPrint) print($"-------   Found contour: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
@@ -286,53 +284,42 @@ public class SVGExporter : MonoBehaviour
         if (debugPrint) Debug.Log("*************END OF TEXTURE SEARCH REACHED");
     }
      
-    void TextureScanLines(int uCount, int vCount, float[] cutoffLevels)
+    void TextureScanLines(Vector2 valueRange, float denistyNorm)
     {
-        int uSampleSteps = uCount;
-        float uincrement = 1f / (float)(uSampleSteps - 1);
-
-        float vScanLineCount = vCount;
-        float vIncrement = 1f/(float)(vScanLineCount-1);
-
-        float vPos;
-        float uPos;
+        int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(denistyNorm));
+        int yPixIndex;        
         bool drawingLine = false;
         Line newLine = new Line();
+        int startY = Random.Range(0, yIncrement);
 
-        float scalar = tex.width;
-        float selectedCutoff;
-        float maxLineLength;
-        float lineDist = 0;
-
-        for (int i = 0; i < vScanLineCount; i++)
+        for (int y = startY; y < tex.height; y += yIncrement)
         {
-            vPos = i * vIncrement;
-            selectedCutoff = cutoffLevels[i% cutoffLevels.Length];
-            maxLineLength = maxLineLengths[i % cutoffLevels.Length];
+            yPixIndex = y; 
 
-            for (int j = 0; j < uSampleSteps; j++)
-            {
-                uPos = j * uincrement;              
-
-                if(drawingLine && uPos == 1)// || lineDist > maxLineLength)
+            for (int x = 0; x < tex.width; x++)
+            {           
+                // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
+                //
+                if(drawingLine && x == tex.width-1)// || lineDist > maxLineLength)
                 {
-                    EndLine();
+                    EndLine(x, yPixIndex);
                 }
 
                 //
                 // IF DARK ENOUGH, START DRAWING LINE
                 //
-                float valueSample = tex.GetPixel((int)(uPos * tex.width), (int)(vPos * tex.height)).r;// tex.GetPixelBilinear(uPos, vPos).r;
-               
+                float valueSample = tex.GetPixel(x, yPixIndex).r;// tex.GetPixelBilinear(uPos, vPos).r;
+
+                //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
+
                 if (!drawingLine)
                 {
-                    if (valueSample < selectedCutoff)
+                    if (valueSample > valueRange.x && valueSample < valueRange.y)
                     {                       
                         // START NEW LINE
                         //
                         drawingLine = true;
-                        lineDist = 0;
-                        newLine = new Line() { p0 = new Vector2(uPos, vPos) * scalar, newLine = true };
+                        newLine = new Line() { p0 = new Vector2(x, yPixIndex), newLine = true };
                     }
                 }
                 //
@@ -340,23 +327,25 @@ public class SVGExporter : MonoBehaviour
                 //
                 else
                 {
-                    if (valueSample > selectedCutoff)
+                    if (valueSample < valueRange.x || valueSample > valueRange.y || x == tex.width-1)
                     {
-                        EndLine();                       
+                        EndLine(x-1, yPixIndex);                       
                     }
                 }
             }
-
-            lineDist += uincrement;
         }
 
-        void EndLine()
+        void EndLine(int x, int y)
         {
             // END LINE
             //
             drawingLine = false;
-            newLine.p1 = new Vector2(uPos, vPos) * scalar;
-            lineList.Add(newLine);
+
+            if(new Vector2(x, y) != newLine.p0)
+            {
+                newLine.p1 = new Vector2(x, y);
+                lineList.Add(newLine);
+            }          
         }
     }
 
@@ -388,9 +377,25 @@ public class SVGExporter : MonoBehaviour
         string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
 
         lineList = new List<Line>();
-   
-        if(generateScanLines)TextureScanLines(uSampleCount, vSampleCount, cutoffLevels);
-        if(generateContours)ContourTrace();
+        contours = new List<Contour>();
+
+       
+        if (generateContours)
+        {
+            for (int i = 0; i < valueRanges.Length; i++)
+            {
+                ContourTrace(valueRanges[i].x);
+            }
+        }
+
+        if (generateScanLines)
+        {
+            for (int i = 0; i < valueRanges.Length; i++)
+            {
+                TextureScanLines(valueRanges[i], densityLevels[i]);
+            }
+        }
+
 
         string testSVGStringHeader = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>
                                         <g> <path style = ""fill:none;"" d = """;
@@ -398,37 +403,21 @@ public class SVGExporter : MonoBehaviour
         for (int i = 0; i < lineList.Count; i++)
         {
             if(i == 0 || lineList[i].newLine)
-                testSVGStringHeader += $"M {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
+                testSVGStringHeader += $"   M {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
             else
-                testSVGStringHeader += $"L {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
+                testSVGStringHeader += $"   L {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
         }
 
         testSVGStringHeader += @"""/> </g> </svg>";
-
-
-
-
-        //string testSVGString = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>
-        //                        <g> 
-        //                        <path style = ""fill:none;"" d = ""M600 350 L293.7663 684.0021 L173.2283 107.2198 L671.9431 500.0001
-        //                         M600 500 L295.8442 680.4031 L215.4855 180.4115 L647.9621 500
-        //                         M600 500 L297.9221 676.8041 L257.7428 253.6032 L623.9811 500
-        //                         M100 100 L100 700 L700 700 L700 100 L100 100
-        //                         M100 100 L100 700 L700 700 L700 100 Q 400 1200 100 100""/>  
-        //                        </g>
-        //                        </svg>";
-
-
-        //Write some text to the test.txt file
+        
+        
+        // WRITE TO TEXT FILE
+        //
         StreamWriter writer = new StreamWriter(path, false);
         writer.WriteLine(testSVGStringHeader);
         writer.Close();
 
-        ////Re-import the file to update the reference in the editor
-        //AssetDatabase.ImportAsset(path);
-        //TextAsset asset = Resources.Load("test");
-        ////Print the text from the file
-        //Debug.Log(asset.text);
+        print("Lines generated: " + lineList.Count);
     }
 
 
@@ -471,7 +460,6 @@ public class SVGExporter : MonoBehaviour
                 Gizmos.color = Color.HSVToRGB(hue, 1, 1);
                 Gizmos.DrawSphere(c.startPix * pixelToWorldScalar, debugPosScale);
                 Gizmos.DrawSphere(c.endPix * pixelToWorldScalar, debugPosScale);
-
 
                 for (int i = 0; i < c.lines.Count; i++)
                 {
