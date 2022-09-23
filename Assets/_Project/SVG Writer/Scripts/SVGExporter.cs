@@ -45,12 +45,16 @@ public class SVGExporter : MonoBehaviour
     public float contourCutoff = .5f;
     public List<Contour> contours = new List<Contour>();
     public bool startClockwize = true;
+    private int maxContourSampleCount = 2;
 
     [Header("DEBUG")]
     public Vector3 debugPos;
     public float debugPosScale = .01f;
     public bool debugPrint = false;
     public float gizmoLineAlpha = .5f;
+    public bool debugDrawContours = true;
+    public bool debugDrawAllLines = true;
+    public float debugContourOffset = .01f;
 
 
 
@@ -65,7 +69,7 @@ public class SVGExporter : MonoBehaviour
     public void ContourTrace()
     {
         contours = new List<Contour>();
-        bool[,] contourPixels = new bool[tex.width, tex.height];
+        int[,] contourPixels = new int[tex.width, tex.height];
         int debugContourSampleCount;
         int debugMaxSamplesPerContour = 40000;
 
@@ -114,7 +118,7 @@ public class SVGExporter : MonoBehaviour
                 // FIND PIXEL THAT CROSSES A BORDER
                 //
                 if (isBorderPixel && !prevIsBorderPix && pixelCols[x + y * tex.width].r < contourCutoff &&
-                    contourPixels[x, y] == false)
+                    contourPixels[x, y] == 0)
                 {
                     debugContourSampleCount = 0;
                     int maxPrevPixelSamples = 4;
@@ -130,7 +134,7 @@ public class SVGExporter : MonoBehaviour
 
                     bool clockwise = startClockwize;
 
-                    contourPixels[x, y] = true;
+                    contourPixels[x, y]++;
                     Line newLine = new Line() { p0 = startPix, newLine = true };
 
                     // DEBUG
@@ -140,58 +144,52 @@ public class SVGExporter : MonoBehaviour
                     // SEARCH ADJASCENT PIXELS CLOCKWISE UNTIL FINDING A BLACK PIXEL THAT COMES AFTER A WHITE PIXEL
                     //                 
                     int neighborIndex = 0;
-                    for (int i = 0; i < neighborsClockwize.Length; i++)
+                    for (int i = 0; i <= neighborsClockwize.Length; i++)
                     {
                         // DEBUG
+                        //
                         debugContourSampleCount++;
                         if (debugContourSampleCount > debugMaxSamplesPerContour)
                         {
-                            if (debugPrint) Debug.Log("Max samples per contour reached");
+                            if (debugPrint) Debug.Log(" ENDING CONTOUR: Max samples per contour reached");
                             break;
                         }
+                     
 
+
+                        // GET NEIGHBOR COORDS, EITHER CLOCK OR ANTI CLOCKWISE
+                        //
                         neighborIndex %= neighborsClockwize.Length;
+                        int searchX, searchY;                       
+                        searchX = clockwise ? (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x : (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x;
+                        searchY = clockwise ? (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y : (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y;
+                                  
+                        
 
-                        int searchX;
-                        int searchY;
-                        if (clockwise)
-                        {
-                            searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;
-                            searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;
-                        }
-                        else
-                        {
-                            searchX = (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x;
-                            searchY = (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y;
-                        }
-
+                        // IF OUTSIDE OF THE IMAGE BOUNDS THEN CONT TO NEXT NEIGHBOR
+                        //
                         if (searchX < 0 || searchY < 0 || searchX == tex.width || searchY == tex.height)
                             continue;
 
-                        //if (debugPrint) print($"Searching: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
-                        if(prevContourPix == new Vector2(searchX, searchY))
+                        // CHECK TO SEE IF THIS PIXEL HAS BEEN SEARCHED BEFORE
+                        //
+                        if (contourPixels[searchX, searchY] >= maxContourSampleCount)
                         {
-                            prevPixelSampleCounter++;
-
-                            if (prevPixelSampleCounter >= maxPrevPixelSamples)
-                            {
-                                if (debugPrint) Debug.Log("********    Sampling previous pixel, Breaking");
-                                break;
-                            }
-                            else
-                            {
-                                if (debugPrint) Debug.Log("Sampling previous pixel    count: " + prevPixelSampleCounter);
-                            }
+                            if (debugPrint) Debug.Log("********  ENDING CONTOUR:    Sampling contour pixel more than twice, Breaking");
+                            break;
                         }
 
-
-
-                        //if(new Vector2(searchX, searchY) != prevContourPix && contourPixels[searchX, searchY])
-                        //{
-                        //    if (debugPrint) Debug.Log("*- ALREADY SEARCHED CONTOUR PIXEL *- " + searchX + "  " + searchY);
-                        //    break;
-                        //}
+                        // CHECK TO SEE IF THE SAMPLED PIXEL IS START OR END OF PREV CONTOUR
+                        //
+                        foreach(Contour c in contours)
+                        {
+                            if(c.startPix == new Vector2(searchX, searchY) || c.endPix == new Vector2(searchX, searchY))
+                            {
+                                if (debugPrint) Debug.Log("********  ENDING CONTOUR:    Sampled start or end of other contour");
+                                break;
+                            }
+                        }
 
                         // SET FOUND PIXEL TO CURRENT POS AND ITERATE
                         //
@@ -231,9 +229,13 @@ public class SVGExporter : MonoBehaviour
                             i = 0;                                   
                             Vector2 newContourPixel = new Vector2(searchX, searchY);
                             newLine.p1 = newContourPixel;
-                            lineList.Add(newLine);
 
-                            contourPixels[searchX, searchY] = true;
+                            // ADD LINES TO CONTOUR AND FULL LINES LIST
+                            //
+                            lineList.Add(newLine);
+                            newContour.lines.Add(newLine);
+
+                            contourPixels[searchX, searchY]++;
 
                           
 
@@ -245,7 +247,7 @@ public class SVGExporter : MonoBehaviour
 
                             if (currentContourPix == startPix)
                             {
-                                if (debugPrint) print("BACK TO START END CONTOUR");
+                                if (debugPrint) print("ENDING CONTOUR:  BACK TO START END CONTOUR");
                                 break;
                             }
                         }
@@ -253,6 +255,9 @@ public class SVGExporter : MonoBehaviour
                         {
                             neighborIndex++;
                         }
+
+                        if (i == 7 && debugPrint)
+                            print("ENDING CONTOUR:  NO NEIGHBORS FOUND");
                     }
 
                     // IF CONTOUR DIDNT MAKE IT BACK TO START, TRY COUNTER CLOCKWIZE FROM START
@@ -265,12 +270,15 @@ public class SVGExporter : MonoBehaviour
                     //    neighborIndex = 0;
                     //}
                     //else
-                    {
-                        // ADD CONTOUR TO LIST
-                        //
-                        if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
-                        contours.Add(newContour);
-                    }
+
+
+                 
+
+                    
+                    // ADD CONTOUR TO LIST
+                    //
+                    if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
+                    contours.Add(newContour);                    
                 }
             }            
         }
@@ -454,18 +462,29 @@ public class SVGExporter : MonoBehaviour
 
         // DRAW CONTOUR START AND ENDS
         //
-        float hue = 0;
-        foreach(Contour c in contours)
+        if (debugDrawContours)
         {
-            Gizmos.color = Color.HSVToRGB(hue, 1, 1);
-            Gizmos.DrawSphere(c.startPix * pixelToWorldScalar, debugPosScale);
-            Gizmos.DrawSphere(c.endPix * pixelToWorldScalar, debugPosScale);
+            float hue = 0;
+            int contourCount = 0;
+            foreach (Contour c in contours)
+            {
+                Gizmos.color = Color.HSVToRGB(hue, 1, 1);
+                Gizmos.DrawSphere(c.startPix * pixelToWorldScalar, debugPosScale);
+                Gizmos.DrawSphere(c.endPix * pixelToWorldScalar, debugPosScale);
 
-            hue += 1f / (float)contours.Count;
+
+                for (int i = 0; i < c.lines.Count; i++)
+                {
+                    Gizmos.DrawLine(c.lines[i].p0 * pixelToWorldScalar + (Vector2.right * contourCount * debugContourOffset), c.lines[i].p1 * pixelToWorldScalar + (Vector2.right * contourCount * debugContourOffset));
+                }
+
+                hue += 1f / (float)contours.Count;
+                contourCount++;
+            }
         }
 
 
-        if (lineList != null)
+        if (debugDrawAllLines && lineList != null)
         {
             Gizmos.color = Color.white * gizmoLineAlpha;
             for (int i = 0; i < lineList.Count; i++)
