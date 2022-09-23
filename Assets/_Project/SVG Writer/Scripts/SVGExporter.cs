@@ -4,12 +4,21 @@ using UnityEngine;
 using System.IO;
 
 public class SVGExporter : MonoBehaviour
-{    
-    struct Line
+{
+    public struct Line
     {
         public bool newLine;
         public Vector2 p0;
         public Vector2 p1;
+    }
+
+    [System.Serializable]
+    public class Contour
+    {
+        public Vector2 startPix;
+        public Vector2 endPix;
+        public List<Line> lines = new List<Line>();
+        public string endCondition;
     }
 
     //
@@ -22,16 +31,21 @@ public class SVGExporter : MonoBehaviour
     public Material imageQuadMat;
 
     [Header("SCAN LINE")]
+    public bool generateScanLines = false;
     public int uSampleCount = 1000;
     public int vSampleCount = 100;
     public float[] cutoffLevels = new float[2] { .9f, .5f };
     public float[] maxLineLengths = new float[2] { 1, 1 };
 
     [Header("CONTOURS")]
+    public bool generateContours = true;
     public int maxContours = 1;
+    public float contourCutoff = .5f;
+    public List<Contour> contours = new List<Contour>();
 
     [Header("DEBUG")]
     public Vector3 debugPos;
+    public float debugPosScale = .01f;
     public bool debugPrint = false;
 
 
@@ -46,11 +60,9 @@ public class SVGExporter : MonoBehaviour
     //
     public void ContourTrace()
     {
-        bool[,] checkedPixels = new bool[tex.width, tex.height];
-        bool[,] hasNode = new bool[tex.width, tex.height];
-        float contourCutoff = .5f;
-
-        int debugContourSampleCount = 0;
+        contours = new List<Contour>();
+        bool[,] contourPixels = new bool[tex.width, tex.height];
+        int debugContourSampleCount;
         int debugMaxSamplesPerContour = 40000;
 
         Vector2[] neighborsClockwize = new Vector2[8]
@@ -65,21 +77,28 @@ public class SVGExporter : MonoBehaviour
             new Vector2(-1,-1),
         };
 
-        Color[] pixelCols = tex.GetPixels();
-        int contourCount = 0;
-
-        for (int x = 1; x < tex.width; x++)
+        Color[] pixelCols = tex.GetPixels();     
+        bool isBorderPixel = pixelCols[0].r < contourCutoff;
+        for (int x = 0; x < tex.width; x++)
         {
-            for (int y = 1; y < tex.height; y++)
+            for (int y = 0; y < tex.height; y++)
             {
-                if (contourCount >= maxContours)
-                {                    
+                if (contours.Count >= maxContours)
+                {
+                    if (debugPrint) Debug.Log("*************MAX CONTOURS REACHED");                  
                     return;
                 }
 
+                debugPos = new Vector2(x, y);
+
+                bool prevIsBorderPix = isBorderPixel;
+                isBorderPixel = pixelCols[x + y * tex.width].r < contourCutoff; ;
+
+                //
                 // FIND PIXEL THAT CROSSES A BORDER
                 //
-                if (pixelCols[x + y * tex.width].r < contourCutoff)
+                if (isBorderPixel && !prevIsBorderPix && pixelCols[x + y * tex.width].r < contourCutoff &&
+                    contourPixels[x, y] == false)
                 {
                     debugContourSampleCount = 0;
                     int maxPrevPixelSamples = 4;
@@ -90,18 +109,16 @@ public class SVGExporter : MonoBehaviour
                     Vector2 startPix = new Vector2(x, y);
                     Vector2 prevContourPix = new Vector2(x, y);
                     Vector2 currentContourPix = new Vector2(x, y);
-                    bool endContourSearchConditionMet = false;
 
-                    hasNode[x, y] = true;
+                    Contour newContour = new Contour() { startPix = startPix };
+
+                    contourPixels[x, y] = true;
                     Line newLine = new Line() { p0 = startPix, newLine = true };
-
 
                     // DEBUG
                     //                  
                     if (debugPrint) Debug.Log("*************FOUND BORDER PIXEL: " + currentContourPix);
-                    debugPos = startPix;
-                   
-                   
+
                     // SEARCH ADJASCENT PIXELS CLOCKWISE UNTIL FINDING A BLACK PIXEL THAT COMES AFTER A WHITE PIXEL
                     //                 
                     int neighborIndex = 0;
@@ -122,7 +139,7 @@ public class SVGExporter : MonoBehaviour
                         if (searchX < 0 || searchY < 0 || searchX == tex.width || searchY == tex.height)
                             continue;
 
-                        if (debugPrint) print($"Searching: {searchX} {searchY} @   nIndex:  {neighborIndex}");
+                        //if (debugPrint) print($"Searching: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
                         if(prevContourPix == new Vector2(searchX, searchY))
                         {
@@ -143,7 +160,7 @@ public class SVGExporter : MonoBehaviour
                         //
                         if (tex.GetPixel(searchX, searchY).r < contourCutoff)
                         {
-                            if (debugPrint) print($"-------   FOUND: {searchX} {searchY} @   nIndex:  {neighborIndex}");
+                            if (debugPrint) print($"-------   Found contour: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
                             switch (neighborIndex)
                             {
@@ -178,10 +195,15 @@ public class SVGExporter : MonoBehaviour
                             newLine.p1 = newContourPixel;
                             lineList.Add(newLine);
 
+                            contourPixels[searchX, searchY] = true;
+
+                          
 
                             prevContourPix = currentContourPix;
                             currentContourPix = newContourPixel;
                             newLine = new Line() { p0 = currentContourPix, newLine = false };
+
+                            newContour.endPix = currentContourPix;
 
                             if (currentContourPix == startPix)
                             {
@@ -194,10 +216,16 @@ public class SVGExporter : MonoBehaviour
                             neighborIndex++;
                         }
                     }
-                    contourCount++;        
+
+                    // ADD CONTOUR TO LIST
+                    //
+                    if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
+                    contours.Add(newContour);
                 }
             }            
         }
+
+        if (debugPrint) Debug.Log("*************END OF TEXTURE SEARCH REACHED");
     }
      
     void TextureScanLines(int uCount, int vCount, float[] cutoffLevels)
@@ -213,7 +241,7 @@ public class SVGExporter : MonoBehaviour
         bool drawingLine = false;
         Line newLine = new Line();
 
-        float scalar = 800;
+        float scalar = tex.width;
         float selectedCutoff;
         float maxLineLength;
         float lineDist = 0;
@@ -236,7 +264,7 @@ public class SVGExporter : MonoBehaviour
                 //
                 // IF DARK ENOUGH, START DRAWING LINE
                 //
-                float valueSample = tex.GetPixelBilinear(uPos, vPos).r;
+                float valueSample = tex.GetPixel((int)(uPos * tex.width), (int)(vPos * tex.height)).r;// tex.GetPixelBilinear(uPos, vPos).r;
                
                 if (!drawingLine)
                 {
@@ -295,18 +323,16 @@ public class SVGExporter : MonoBehaviour
     //
     // CREATE & WRITE VECTOR TO FILE
     //
+
     [ContextMenu("Test")]
     public void WriteString()
     {
         string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
 
         lineList = new List<Line>();
-        //GenerateRandomLines();
-        //TextureScanLines(uSampleCount, vSampleCount, cutoffLevels);
-        //TextureScanLines(uSampleCount, (int)(vSampleCount * .5f), .5f);
-        //TextureScanLines(uSampleCount, (int)(vSampleCount * .25f), .9f);
-
-        ContourTrace();
+   
+        if(generateScanLines)TextureScanLines(uSampleCount, vSampleCount, cutoffLevels);
+        if(generateContours)ContourTrace();
 
         string testSVGStringHeader = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>
                                         <g> <path style = ""fill:none;"" d = """;
@@ -324,15 +350,15 @@ public class SVGExporter : MonoBehaviour
 
 
 
-        string testSVGString = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>
-                                <g> 
-                                <path style = ""fill:none;"" d = ""M600 350 L293.7663 684.0021 L173.2283 107.2198 L671.9431 500.0001
-                                 M600 500 L295.8442 680.4031 L215.4855 180.4115 L647.9621 500
-                                 M600 500 L297.9221 676.8041 L257.7428 253.6032 L623.9811 500
-                                 M100 100 L100 700 L700 700 L700 100 L100 100
-                                 M100 100 L100 700 L700 700 L700 100 Q 400 1200 100 100""/>  
-                                </g>
-                                </svg>";
+        //string testSVGString = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>
+        //                        <g> 
+        //                        <path style = ""fill:none;"" d = ""M600 350 L293.7663 684.0021 L173.2283 107.2198 L671.9431 500.0001
+        //                         M600 500 L295.8442 680.4031 L215.4855 180.4115 L647.9621 500
+        //                         M600 500 L297.9221 676.8041 L257.7428 253.6032 L623.9811 500
+        //                         M100 100 L100 700 L700 700 L700 100 L100 100
+        //                         M100 100 L100 700 L700 700 L700 100 Q 400 1200 100 100""/>  
+        //                        </g>
+        //                        </svg>";
 
 
         //Write some text to the test.txt file
@@ -355,6 +381,9 @@ public class SVGExporter : MonoBehaviour
     //
     private void OnDrawGizmos()
     {
+        if (imageQuadMat.GetTexture("_BaseMap") != tex)
+            imageQuadMat.SetTexture("_BaseMap", tex);
+
         // DRAW FRAME
         //
         Vector3 topLeft = Vector3.up * tex.height * pixelToWorldScalar;        
@@ -371,13 +400,27 @@ public class SVGExporter : MonoBehaviour
         imageQuad.transform.localScale = new Vector3(tex.width * pixelToWorldScalar, tex.height * pixelToWorldScalar);
 
 
-        Gizmos.DrawSphere(debugPos * .01f, .1f);
+        Gizmos.DrawSphere(debugPos * pixelToWorldScalar, debugPosScale);
+
+        // DRAW CONTOUR START AND ENDS
+        //
+        float hue = 0;
+        foreach(Contour c in contours)
+        {
+            Gizmos.color = Color.HSVToRGB(hue, 1, 1);
+            Gizmos.DrawSphere(c.startPix * pixelToWorldScalar, debugPosScale);
+            Gizmos.DrawSphere(c.endPix * pixelToWorldScalar, debugPosScale);
+
+            hue += 1f / (float)contours.Count;
+        }
+
 
         if (lineList != null)
         {
+            Gizmos.color = Color.white * .25f;
             for (int i = 0; i < lineList.Count; i++)
             {
-                Gizmos.DrawLine(lineList[i].p0 * .01f, lineList[i].p1 * .01f);
+                Gizmos.DrawLine(lineList[i].p0 * pixelToWorldScalar, lineList[i].p1 * pixelToWorldScalar);
             }
         }
     }

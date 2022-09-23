@@ -150,8 +150,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 265416163}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -2.8400002, y: -2.0900002, z: 0}
-  m_LocalScale: {x: 10.24, y: 10.24, z: 0}
+  m_LocalPosition: {x: -5.4, y: -4.65, z: 0}
+  m_LocalScale: {x: 5.12, y: 5.12, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 419651657}
@@ -483,21 +483,24 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 550fa89749927c44984c63dfc129769b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tex: {fileID: 2800000, guid: d74462df8f8c62c41bfebe0e7f77180a, type: 3}
+  tex: {fileID: 2800000, guid: a1df300096a32a940a1be3d2a5cf8c3d, type: 3}
   pixelToWorldScalar: 0.01
   imageQuad: {fileID: 265416164}
   imageQuadMat: {fileID: 2100000, guid: d087984ccba14b843a7b9f3a0038ae38, type: 2}
-  uSampleCount: 1000
-  vSampleCount: 100
+  generateScanLines: 0
+  uSampleCount: 1023
+  vSampleCount: 30
   cutoffLevels:
-  - 0.9
+  - 0.5
   - 0.5
   maxLineLengths:
   - 1
   - 1
-  maxContours: 1
-  debugPos: {x: 140, y: 828, z: 0}
-  debugPrint: 1
+  generateContours: 1
+  maxContours: 60
+  debugPos: {x: 1023, y: 1023, z: 0}
+  debugPosScale: 0.01
+  debugPrint: 0
 --- !u!4 &419651657
 Transform:
   m_ObjectHideFlags: 0
