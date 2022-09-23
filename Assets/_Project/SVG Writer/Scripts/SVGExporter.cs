@@ -19,6 +19,8 @@ public class SVGExporter : MonoBehaviour
         public Vector2 endPix;
         public List<Line> lines = new List<Line>();
         public string endCondition;
+
+        public bool closedContour => startPix == endPix;
     }
 
     //
@@ -42,11 +44,13 @@ public class SVGExporter : MonoBehaviour
     public int maxContours = 1;
     public float contourCutoff = .5f;
     public List<Contour> contours = new List<Contour>();
+    public bool startClockwize = true;
 
     [Header("DEBUG")]
     public Vector3 debugPos;
     public float debugPosScale = .01f;
     public bool debugPrint = false;
+    public float gizmoLineAlpha = .5f;
 
 
 
@@ -75,6 +79,18 @@ public class SVGExporter : MonoBehaviour
             new Vector2(1,-1),
             new Vector2(0,-1),
             new Vector2(-1,-1),
+        };
+
+        Vector2[] neighborsAntiClockwize = new Vector2[8]
+        {
+            new Vector2(-1,0),
+            new Vector2(-1,-1),
+            new Vector2(0,-1),
+            new Vector2(1,-1),
+            new Vector2(1,0),
+            new Vector2(1,1),
+            new Vector2(0,1),
+            new Vector2(-1,1)
         };
 
         Color[] pixelCols = tex.GetPixels();     
@@ -112,6 +128,8 @@ public class SVGExporter : MonoBehaviour
 
                     Contour newContour = new Contour() { startPix = startPix };
 
+                    bool clockwise = startClockwize;
+
                     contourPixels[x, y] = true;
                     Line newLine = new Line() { p0 = startPix, newLine = true };
 
@@ -133,8 +151,19 @@ public class SVGExporter : MonoBehaviour
                         }
 
                         neighborIndex %= neighborsClockwize.Length;
-                        int searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;
-                        int searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;
+
+                        int searchX;
+                        int searchY;
+                        if (clockwise)
+                        {
+                            searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;
+                            searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;
+                        }
+                        else
+                        {
+                            searchX = (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x;
+                            searchY = (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y;
+                        }
 
                         if (searchX < 0 || searchY < 0 || searchX == tex.width || searchY == tex.height)
                             continue;
@@ -155,6 +184,14 @@ public class SVGExporter : MonoBehaviour
                                 if (debugPrint) Debug.Log("Sampling previous pixel    count: " + prevPixelSampleCounter);
                             }
                         }
+
+
+
+                        //if(new Vector2(searchX, searchY) != prevContourPix && contourPixels[searchX, searchY])
+                        //{
+                        //    if (debugPrint) Debug.Log("*- ALREADY SEARCHED CONTOUR PIXEL *- " + searchX + "  " + searchY);
+                        //    break;
+                        //}
 
                         // SET FOUND PIXEL TO CURRENT POS AND ITERATE
                         //
@@ -189,6 +226,7 @@ public class SVGExporter : MonoBehaviour
                                     neighborIndex = 4;
                                     break;
                             }
+                            
 
                             i = 0;                                   
                             Vector2 newContourPixel = new Vector2(searchX, searchY);
@@ -217,10 +255,22 @@ public class SVGExporter : MonoBehaviour
                         }
                     }
 
-                    // ADD CONTOUR TO LIST
+                    // IF CONTOUR DIDNT MAKE IT BACK TO START, TRY COUNTER CLOCKWIZE FROM START
                     //
-                    if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
-                    contours.Add(newContour);
+                    //if(clockwise && !newContour.closedContour)
+                    //{
+                    //    clockwise = false;
+                    //    prevContourPix = newContour.startPix;
+                    //    currentContourPix = newContour.startPix;
+                    //    neighborIndex = 0;
+                    //}
+                    //else
+                    {
+                        // ADD CONTOUR TO LIST
+                        //
+                        if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
+                        contours.Add(newContour);
+                    }
                 }
             }            
         }
@@ -417,7 +467,7 @@ public class SVGExporter : MonoBehaviour
 
         if (lineList != null)
         {
-            Gizmos.color = Color.white * .25f;
+            Gizmos.color = Color.white * gizmoLineAlpha;
             for (int i = 0; i < lineList.Count; i++)
             {
                 Gizmos.DrawLine(lineList[i].p0 * pixelToWorldScalar, lineList[i].p1 * pixelToWorldScalar);
