@@ -3,6 +3,15 @@ using System.Collections.Generic;
 using UnityEngine;
 using System.IO;
 
+// Sample percieved luminance - DONE
+// Create shader to be able to better select ranges
+// Move all get pixels to get from a cached pixel array
+// Create shader to mimick final output
+// Show original image on the left same size as current
+// Designate value region
+// Value range
+// Contour?
+// Shading?
 public class SVGExporter : MonoBehaviour
 {
     public struct Line
@@ -23,6 +32,24 @@ public class SVGExporter : MonoBehaviour
         public bool closedContour => startPix == endPix;
     }
 
+    [System.Serializable]
+    public class TracedRegion
+    {
+        public bool generateMinContour = true;
+        public bool generateMaxContour = true;
+        public bool generateScanLines = true;
+
+        public bool debugDisable = false;
+
+        [Range(0, 1)]
+        public float minRange = .4f;
+        [Range(0, 1)]
+        public float maxRange = .5f;
+
+        [Range(0, 1)]
+        public float scanLineDensity = .3f;
+    }
+
     //
     // VARIABLES
     //
@@ -31,20 +58,19 @@ public class SVGExporter : MonoBehaviour
 
     public Transform imageQuad;
     public Material imageQuadMat;
+    public Transform imageQuad_Original;
+    public Material imageQuadMat_Original;
 
-    public Vector2[] valueRanges = new Vector2[2] {new Vector2(0,.5f), new Vector2(.5f, 1) };
 
-    [Header("SCAN LINE")]
-    public bool generateScanLines = false;
-    public float[] densityLevels = new float[2] { .9f, .1f };
+    [Header("REGIONS")]
+    public TracedRegion[] tracedRegions;
 
-    [Header("CONTOURS")]
-    public bool generateContours = true;
-    public int maxContours = 1;
-    public float contourCutoff = .5f;
-    public List<Contour> contours = new List<Contour>();
+
+    [Header("CONTOURS")]  
+    public int maxContours = 1;   
     public bool startClockwize = true;
     private int maxContourSampleCount = 2;
+    private List<Contour> contours = new List<Contour>();
 
     [Header("DEBUG")]
     public Vector3 debugPos;
@@ -62,6 +88,8 @@ public class SVGExporter : MonoBehaviour
     private List<Line> lineList = new List<Line>();
 
 
+    private Color[] pixelCols;
+
     //
     // VECTOR GENERATION FUNCTIONS
     //
@@ -70,6 +98,7 @@ public class SVGExporter : MonoBehaviour
         int[,] contourPixels = new int[tex.width, tex.height];
         int debugContourSampleCount;
         int debugMaxSamplesPerContour = 40000;
+        int contourCount = 0;
 
         Vector2[] neighborsClockwize = new Vector2[8]
         {
@@ -95,37 +124,34 @@ public class SVGExporter : MonoBehaviour
             new Vector2(-1,1)
         };
 
-        Color[] pixelCols = tex.GetPixels();     
-        bool isBorderPixel = pixelCols[0].r < valueCutoff;
+     
+        bool isBorderPixel = GetValueAtPixel(0,0) < valueCutoff;
         for (int x = 0; x < tex.width; x++)
         {
             for (int y = 0; y < tex.height; y++)
             {
-                if (contours.Count >= maxContours)
+                if (contourCount >= maxContours)
                 {
-                    if (debugPrint) Debug.Log("*************MAX CONTOURS REACHED");                  
+                    Debug.Log("*************MAX CONTOURS REACHED");                  
                     return;
                 }
 
                 debugPos = new Vector2(x, y);
 
                 bool prevIsBorderPix = isBorderPixel;
-                isBorderPixel = pixelCols[x + y * tex.width].r < valueCutoff; ;
+                isBorderPixel = GetValueAtPixel(x, y) < valueCutoff; ;
 
                 //
                 // FIND PIXEL THAT CROSSES A BORDER
                 //
-                if (isBorderPixel && !prevIsBorderPix && pixelCols[x + y * tex.width].r < valueCutoff &&
+                if (isBorderPixel && !prevIsBorderPix && GetValueAtPixel(x, y) < valueCutoff &&
                     contourPixels[x, y] == 0)
                 {
                     debugContourSampleCount = 0;
-                    int maxPrevPixelSamples = 4;
-                    int prevPixelSampleCounter = 0;
 
                     // TRACE CONTOUR
                     //
                     Vector2 startPix = new Vector2(x, y);
-                    Vector2 prevContourPix = new Vector2(x, y);
                     Vector2 currentContourPix = new Vector2(x, y);
 
                     Contour newContour = new Contour() { startPix = startPix };
@@ -191,7 +217,7 @@ public class SVGExporter : MonoBehaviour
 
                         // SET FOUND PIXEL TO CURRENT POS AND ITERATE
                         //
-                        if (tex.GetPixel(searchX, searchY).r < valueCutoff)
+                        if (GetValueAtPixel(searchX, searchY) < valueCutoff)
                         {
                             if (debugPrint) print($"-------   Found contour: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
@@ -234,10 +260,7 @@ public class SVGExporter : MonoBehaviour
                             newContour.lines.Add(newLine);
 
                             contourPixels[searchX, searchY]++;
-
-                          
-
-                            prevContourPix = currentContourPix;
+                                                     
                             currentContourPix = newContourPixel;
                             newLine = new Line() { p0 = currentContourPix, newLine = false };
 
@@ -276,7 +299,8 @@ public class SVGExporter : MonoBehaviour
                     // ADD CONTOUR TO LIST
                     //
                     if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
-                    contours.Add(newContour);                    
+                    contours.Add(newContour);
+                    contourCount++;
                 }
             }            
         }
@@ -308,7 +332,7 @@ public class SVGExporter : MonoBehaviour
                 //
                 // IF DARK ENOUGH, START DRAWING LINE
                 //
-                float valueSample = tex.GetPixel(x, yPixIndex).r;// tex.GetPixelBilinear(uPos, vPos).r;
+                float valueSample = GetValueAtPixel(x, yPixIndex);
 
                 //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
 
@@ -349,6 +373,35 @@ public class SVGExporter : MonoBehaviour
         }
     }
 
+    float GetValueAtPixel(int x, int y)
+    {
+        float h, s, v;
+        Color.RGBToHSV(pixelCols[x + y * tex.width], out h, out s, out v);
+        return v;
+        //return pixelCols[x + y * tex.width].r;
+    }
+
+    private float ColorToPercievedLuminance(Color col)
+    {
+        //return sRGBtoLin(col.r) * 0.2426f + sRGBtoLin(col.g) * 0.7152f + sRGBtoLin(col.b) * 0.0722f;
+        return col.r * 0.2426f + col.g * 0.7152f + col.b * 0.0722f;
+    }
+
+    float sRGBtoLin(float colorChannel)
+    {
+        // Send this function a decimal sRGB gamma encoded color value
+        // between 0.0 and 1.0, and it returns a linearized value.
+
+        if (colorChannel <= 0.04045f)
+        {
+            return colorChannel / 12.92f;
+        }
+        else
+        {
+            return Mathf.Pow((colorChannel + 0.055f) / 1.055f, 2.4f);
+        }
+    }
+
     void GenerateRandomLines()
     {
         lineList = new List<Line>();
@@ -374,27 +427,46 @@ public class SVGExporter : MonoBehaviour
     [ContextMenu("Test")]
     public void WriteString()
     {
+        // CACHE PIXEL COLS
+        //
+        pixelCols = tex.GetPixels();
+
         string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
 
         lineList = new List<Line>();
         contours = new List<Contour>();
 
        
-        if (generateContours)
+        foreach(TracedRegion region in tracedRegions)
         {
-            for (int i = 0; i < valueRanges.Length; i++)
-            {
-                ContourTrace(valueRanges[i].x);
-            }
+            if (region.debugDisable)
+                continue;
+
+            if (region.generateMinContour)
+                ContourTrace(region.minRange);
+
+            if (region.generateMaxContour)
+                ContourTrace(region.maxRange);
+
+            if (region.generateScanLines)
+                TextureScanLines(new Vector2(region.minRange, region.maxRange), region.scanLineDensity);
         }
 
-        if (generateScanLines)
-        {
-            for (int i = 0; i < valueRanges.Length; i++)
-            {
-                TextureScanLines(valueRanges[i], densityLevels[i]);
-            }
-        }
+        //if (generateContours)
+        //{
+        //    for (int i = 0; i < valueRanges.Length; i++)
+        //    {
+        //        ContourTrace(valueRanges[i].x);
+        //    }
+        //}
+
+        //if (generateScanLines)
+        //{
+        //    for (int i = 0; i < valueRanges.Length; i++)
+        //    {
+        //        TextureScanLines(valueRanges[i], densityLevels[i]);
+        //    }
+        //}
 
 
         string testSVGStringHeader = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>
@@ -430,24 +502,20 @@ public class SVGExporter : MonoBehaviour
     {
         if (imageQuadMat.GetTexture("_BaseMap") != tex)
             imageQuadMat.SetTexture("_BaseMap", tex);
+        if (imageQuadMat_Original.GetTexture("_BaseMap") != tex)
+            imageQuadMat_Original.SetTexture("_BaseMap", tex);
 
-        // DRAW FRAME
-        //
-        Vector3 topLeft = Vector3.up * tex.height * pixelToWorldScalar;        
-        Vector3 btmRight = Vector3.right * tex.height * pixelToWorldScalar;
-        Vector3 topRight = topLeft + btmRight;
-        Gizmos.DrawLine(Vector3.zero, topLeft);
-        Gizmos.DrawLine(topLeft, topRight);
-        Gizmos.DrawLine(topRight, btmRight);
-        Gizmos.DrawLine(btmRight, Vector3.zero);
+   
 
         // POSITION IMAGE QUAD
         //
         imageQuad.transform.position = pixelMidpointWorldSpace;
         imageQuad.transform.localScale = new Vector3(tex.width * pixelToWorldScalar, tex.height * pixelToWorldScalar);
+        imageQuad_Original.transform.position = pixelMidpointWorldSpace + Vector2.left * tex.width * pixelToWorldScalar;
+        imageQuad_Original.transform.localScale = imageQuad.transform.localScale;
 
 
-        Gizmos.DrawSphere(debugPos * pixelToWorldScalar, debugPosScale);
+       Gizmos.DrawSphere(debugPos * pixelToWorldScalar, debugPosScale);
 
         // DRAW CONTOUR START AND ENDS
         //
