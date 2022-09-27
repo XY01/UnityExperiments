@@ -47,6 +47,9 @@ namespace SVGGenerator
         [Range(0, 1)]
         public float maxRange = .5f;
 
+        [HideInInspector]
+        public float prevMinRange = .4f, prevMaxRange = .5f;
+
         [Range(0, 1)]
         public float scanLineDensity = .3f;
 
@@ -55,7 +58,9 @@ namespace SVGGenerator
         public bool fillLinesVisibility = true;
 
 
+        [HideInInspector]
         public List<Contour> minContours = new List<Contour>();
+        [HideInInspector]
         public List<Contour> maxContours = new List<Contour>();
 
         [HideInInspector]
@@ -77,8 +82,7 @@ namespace SVGGenerator
             }
 
             if (generateScanLines)
-                fillLines = svgExporter.TextureScanLines(new Vector2(minRange, maxRange), scanLineDensity);
-            
+                fillLines = svgExporter.TextureScanLines(new Vector2(minRange, maxRange), scanLineDensity);            
         }
     }
 
@@ -436,6 +440,28 @@ namespace SVGGenerator
             else
             {
                 return Mathf.Pow((colorChannel + 0.055f) / 1.055f, 2.4f);
+            }
+        }
+
+        private void OnValidate()
+        {
+            foreach(TracedRegion region in tracedRegions)
+            {
+                if(region.minRange != region.prevMinRange)
+                {
+                    region.prevMinRange = region.minRange;
+                    imageQuadMat.SetColor("_RegionCol", region.col);
+                    imageQuadMat.SetFloat("_MinRange", region.minRange);
+                    imageQuadMat.SetFloat("_MaxRange", region.maxRange);
+                }
+
+                if (region.maxRange != region.prevMaxRange)
+                {
+                    region.prevMaxRange = region.maxRange;
+                    imageQuadMat.SetColor("_RegionCol", region.col);
+                    imageQuadMat.SetFloat("_MinRange", region.minRange);
+                    imageQuadMat.SetFloat("_MaxRange", region.maxRange);
+                }
             }
         }
 
