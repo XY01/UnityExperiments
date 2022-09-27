@@ -4,21 +4,39 @@ using UnityEngine;
 using System.IO;
 
 // Sample percieved luminance - DONE
-// Create shader to be able to better select ranges
-// Move all get pixels to get from a cached pixel array
+// Create shader to be able to better select ranges - DONE
+// Move all get pixels to get from a cached pixel array - DONE
+// Show original image on the left same size as current - DONE
+// Designate value region - DONE
+// Add reagion by hue, value, saturation - DONE
+
+
+// Test distance from line calc
+// Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines
+// Set HSV select from region in shader in on validate
+// Stippling, dash line styles
+// Try draw a path along a line where contour lines are near parallell
+// Simplify lines, straighten lines by taking angle to next lines end point and if not over x angle then move end point
+
+
+
 // Create shader to mimick final output
-// Show original image on the left same size as current
-// Designate value region
-// Value range
-// Contour?
-// Shading?
+// Show histogram of image to allow for selection of range visually
+
+
 namespace SVGGenerator
-{    public struct Line
+{
+    #region MINOR CLASSES
+    /// <summary>
+    /// Holds start and end position for a straight line section as well as an instruction to start the line at the first position
+    /// </summary>
+    public struct Line
     {
         public bool newLine;
         public Vector2 p0;
         public Vector2 p1;
     }
+
 
     [System.Serializable]
     public class Contour
@@ -31,9 +49,19 @@ namespace SVGGenerator
         public bool closedContour => startPix == endPix;
     }
 
+
+    public enum RegionSelectionType
+    {
+        Hue,
+        Value,
+        Saturation
+    }
+
     [System.Serializable]
     public class TracedRegion
     {
+        public RegionSelectionType regionSelectionType = RegionSelectionType.Value;
+
         public Color col;
 
         public bool generateMinContour = true;
@@ -58,41 +86,48 @@ namespace SVGGenerator
         public bool fillLinesVisibility = true;
 
 
-        [HideInInspector]
+        //[HideInInspector]
         public List<Contour> minContours = new List<Contour>();
-        [HideInInspector]
+        //[HideInInspector]
         public List<Contour> maxContours = new List<Contour>();
 
-        [HideInInspector]
+        //[HideInInspector]
         public List<Line> fillLines = new List<Line>();
 
         public void Trace(SVGExporter svgExporter)
-        {           
+        {
             if (debugDisable)
                 return;
 
+            minContours.Clear();
+            maxContours.Clear();
+            fillLines.Clear();
+
             if (generateMinContour)
             {
-                svgExporter.ContourTrace(this, minContours, minRange);              
+                svgExporter.TraceContour(this, minContours, minRange);
             }
 
             if (generateMaxContour)
             {
-                svgExporter.ContourTrace(this, maxContours, maxRange);
+                svgExporter.TraceContour(this, maxContours, maxRange);
             }
 
             if (generateScanLines)
-                fillLines = svgExporter.TextureScanLines(new Vector2(minRange, maxRange), scanLineDensity);            
+                fillLines = svgExporter.TraceScaneLine(this);
+
+
+            Debug.Log($"Region trace complete - Contours: {minContours.Count + maxContours.Count}  Fill lines: {fillLines.Count}");
         }
     }
+    #endregion
+
 
     public class SVGExporter : MonoBehaviour
     {
-        //
-        // VARIABLES
-        //
+        #region VARIABLES       
         public Texture2D tex;
-        public float pixelToWorldScalar = .01f;
+        private const float pixelToWorldScalar = .01f;
 
         public Transform imageQuad;
         public Material imageQuadMat;
@@ -100,14 +135,15 @@ namespace SVGGenerator
         public Material imageQuadMat_Original;
 
 
-        [Header("REGIONS")]
-        public TracedRegion[] tracedRegions;
-
-
         [Header("CONTOURS")]
-        public int maxContours = 1;
+        public int maxContours = 500;
         public bool startClockwize = true;
         private int maxContourSampleCount = 2;
+
+
+        [Header("REGIONS")]
+        public TracedRegion[] tracedRegions;
+              
 
         [Header("DEBUG")]
         public Vector3 debugPos;
@@ -126,10 +162,14 @@ namespace SVGGenerator
 
         private Color[] pixelCols;
 
+        #endregion
+
+
+       
         //
         // VECTOR GENERATION FUNCTIONS
         //
-        public void ContourTrace(TracedRegion region, List<Contour> contourList, float valueCutoff)
+        public void TraceContour(TracedRegion region, List<Contour> contourList, float valueCutoff)
         {
             int[,] contourPixels = new int[tex.width, tex.height];
             int debugContourSampleCount;
@@ -161,7 +201,7 @@ namespace SVGGenerator
             };
 
 
-            bool isBorderPixel = GetValueAtPixel(0, 0) < valueCutoff;
+            bool isBorderPixel = GetValueAtPixel(region.regionSelectionType, 0, 0) < valueCutoff;
             for (int x = 0; x < tex.width; x++)
             {
                 for (int y = 0; y < tex.height; y++)
@@ -175,12 +215,12 @@ namespace SVGGenerator
                     debugPos = new Vector2(x, y);
 
                     bool prevIsBorderPix = isBorderPixel;
-                    isBorderPixel = GetValueAtPixel(x, y) < valueCutoff; ;
+                    isBorderPixel = GetValueAtPixel(region.regionSelectionType, x, y) < valueCutoff; ;
 
                     //
                     // FIND PIXEL THAT CROSSES A BORDER
                     //
-                    if (isBorderPixel && !prevIsBorderPix && GetValueAtPixel(x, y) < valueCutoff &&
+                    if (isBorderPixel && !prevIsBorderPix && GetValueAtPixel(region.regionSelectionType, x, y) < valueCutoff &&
                         contourPixels[x, y] == 0)
                     {
                         debugContourSampleCount = 0;
@@ -253,7 +293,7 @@ namespace SVGGenerator
 
                             // SET FOUND PIXEL TO CURRENT POS AND ITERATE
                             //
-                            if (GetValueAtPixel(searchX, searchY) < valueCutoff)
+                            if (GetValueAtPixel(region.regionSelectionType, searchX, searchY) < valueCutoff)
                             {
                                 if (debugPrint) print($"-------   Found contour: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
@@ -342,11 +382,11 @@ namespace SVGGenerator
             if (debugPrint) Debug.Log("*************END OF TEXTURE SEARCH REACHED");
         }
 
-        public List<Line> TextureScanLines(Vector2 valueRange, float denistyNorm)
+        public List<Line> TraceScaneLine(TracedRegion region)
         {
             List<Line> newLines = new List<Line>();
 
-            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(denistyNorm));
+            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(region.scanLineDensity));
             int yPixIndex;
             bool drawingLine = false;
             Line newLine = new Line();
@@ -368,13 +408,13 @@ namespace SVGGenerator
                     //
                     // IF DARK ENOUGH, START DRAWING LINE
                     //
-                    float valueSample = GetValueAtPixel(x, yPixIndex);
+                    float valueSample = GetValueAtPixel(region.regionSelectionType, x, yPixIndex);
 
                     //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
 
                     if (!drawingLine)
                     {
-                        if (valueSample > valueRange.x && valueSample < valueRange.y)
+                        if (valueSample > region.minRange && valueSample < region.maxRange)
                         {
                             if (newLines == null)
                                 newLines = new List<Line>();
@@ -390,7 +430,7 @@ namespace SVGGenerator
                     //
                     else
                     {
-                        if (valueSample < valueRange.x || valueSample > valueRange.y || x == tex.width - 1)
+                        if (valueSample < region.minRange || valueSample > region.maxRange || x == tex.width - 1)
                         {
                             EndLine(x - 1, yPixIndex);
                         }
@@ -414,79 +454,11 @@ namespace SVGGenerator
             return newLines;
         }
 
-        float GetValueAtPixel(int x, int y)
-        {
-            float h, s, v;
-            Color.RGBToHSV(pixelCols[x + y * tex.width], out h, out s, out v);
-            return v;
-            //return pixelCols[x + y * tex.width].r;
-        }
-
-        private float ColorToPercievedLuminance(Color col)
-        {
-            //return sRGBtoLin(col.r) * 0.2426f + sRGBtoLin(col.g) * 0.7152f + sRGBtoLin(col.b) * 0.0722f;
-            return col.r * 0.2426f + col.g * 0.7152f + col.b * 0.0722f;
-        }
-
-        float sRGBtoLin(float colorChannel)
-        {
-            // Send this function a decimal sRGB gamma encoded color value
-            // between 0.0 and 1.0, and it returns a linearized value.
-
-            if (colorChannel <= 0.04045f)
-            {
-                return colorChannel / 12.92f;
-            }
-            else
-            {
-                return Mathf.Pow((colorChannel + 0.055f) / 1.055f, 2.4f);
-            }
-        }
-
-        private void OnValidate()
-        {
-            foreach(TracedRegion region in tracedRegions)
-            {
-                if(region.minRange != region.prevMinRange)
-                {
-                    region.prevMinRange = region.minRange;
-                    imageQuadMat.SetColor("_RegionCol", region.col);
-                    imageQuadMat.SetFloat("_MinRange", region.minRange);
-                    imageQuadMat.SetFloat("_MaxRange", region.maxRange);
-                }
-
-                if (region.maxRange != region.prevMaxRange)
-                {
-                    region.prevMaxRange = region.maxRange;
-                    imageQuadMat.SetColor("_RegionCol", region.col);
-                    imageQuadMat.SetFloat("_MinRange", region.minRange);
-                    imageQuadMat.SetFloat("_MaxRange", region.maxRange);
-                }
-            }
-        }
-
-        //void GenerateRandomLines()
-        //{
-        //    lineList = new List<Line>();
-        //    float radius = 400;
-        //    for (int i = 0; i < 100; i++)
-        //    {
-        //        Line newLine = new Line()
-        //        {
-        //            p0 = pixelMidpoint + Random.insideUnitCircle * radius,
-        //            p1 = pixelMidpoint + Random.insideUnitCircle * radius
-        //        };
-
-        //        lineList.Add(newLine);
-        //    }
-        //}
-
 
 
         //
         // CREATE & WRITE VECTOR TO FILE
         //
-
         [ContextMenu("Test")]
         public void WriteString()
         {
@@ -564,10 +536,101 @@ namespace SVGGenerator
             StreamWriter writer = new StreamWriter(path, false);
             writer.WriteLine(testSVGStringHeader);
             writer.Close();
-
-            print("Lines generated: " + lineList.Count);
         }
 
+
+
+        //
+        // HELPER FUNCTIONS
+        //
+        private float GetValueAtPixel(RegionSelectionType selectionType, int x, int y)
+        {
+            float h, s, v;
+
+
+            // DISCRETE PIXEL SAMPLING
+            //
+            //Color.RGBToHSV(pixelCols[x + y * tex.width], out h, out s, out v);
+
+
+            // BILNEAR SAMPLING
+            //
+            Color col = tex.GetPixelBilinear((float)(x / (float)tex.width), (float)(y / (float)tex.height));
+            Color.RGBToHSV(col, out h, out s, out v);
+
+            switch (selectionType)
+            {
+                case RegionSelectionType.Hue:
+                    return h;
+                case RegionSelectionType.Saturation:
+                    return s;
+                case RegionSelectionType.Value:
+                    return v;
+                default:
+                    return v;
+            }
+        }
+
+        public Vector2 FindNearestPointOnLine(Vector2 origin, Vector2 direction, Vector2 point)
+        {
+            direction.Normalize();
+            Vector2 lhs = point - origin;
+
+            float dotP = Vector2.Dot(lhs, direction);
+            return origin + direction * dotP;
+        }
+
+        public Vector2 FindNearestPointOnDiscreteLine(Vector2 origin, Vector2 end, Vector2 point)
+        {
+            //Get heading
+            Vector2 heading = (end - origin);
+            float magnitudeMax = heading.magnitude;
+            heading.Normalize();
+
+            //Do projection from the point but clamp it
+            Vector2 lhs = point - origin;
+            float dotP = Vector2.Dot(lhs, heading);
+            dotP = Mathf.Clamp(dotP, 0f, magnitudeMax);
+            return origin + heading * dotP;
+        }
+
+        public Transform start;
+        public Transform end;
+        public Transform point;
+
+        float DistanceOfPointFromLine(Vector2 origin, Vector2 end, Vector2 point)
+        {
+            float a = Vector2.Distance(origin, end);
+            float b = Vector2.Distance(origin, point);
+            float c = Vector2.Distance(end, point);
+            float s = (a + b + c) / 2;
+            float distance = 2 * Mathf.Sqrt(s * (s - a) * (s - b) * (s - c)) / a;
+
+            return distance;
+        }
+
+
+        private void OnValidate()
+        {
+            foreach (TracedRegion region in tracedRegions)
+            {
+                if (region.minRange != region.prevMinRange)
+                {
+                    region.prevMinRange = region.minRange;
+                    imageQuadMat.SetColor("_RegionCol", region.col);
+                    imageQuadMat.SetFloat("_MinRange", region.minRange);
+                    imageQuadMat.SetFloat("_MaxRange", region.maxRange);
+                }
+
+                if (region.maxRange != region.prevMaxRange)
+                {
+                    region.prevMaxRange = region.maxRange;
+                    imageQuadMat.SetColor("_RegionCol", region.col);
+                    imageQuadMat.SetFloat("_MinRange", region.minRange);
+                    imageQuadMat.SetFloat("_MaxRange", region.maxRange);
+                }
+            }
+        }
 
 
 
