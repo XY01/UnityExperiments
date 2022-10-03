@@ -632,6 +632,119 @@ namespace SVGGenerator
             }
         }
 
+        [ContextMenu("Simplify")]
+        void SimplifyRegions()
+        {
+            foreach(TracedRegion region in tracedRegions)
+            {
+                foreach(Contour c in region.minContours)
+                {
+                    if (c.lines.Count > 0)
+                    {
+                        //c.lines = SimplifyContour(c);
+                        c.lines = AssessCurvature(c);
+                    }
+                }
+
+                foreach (Contour c in region.maxContours)
+                {
+                    if (c.lines.Count > 0)
+                    {
+                        //c.lines = SimplifyContour(c);
+                        c.lines = AssessCurvature(c);
+                    }
+                }
+            }
+        }
+
+        [Header("Simplify")]
+        public int minSampleOffset = 3;
+        public int curvatureSampleCount = 10;
+        public float curveCutoff = .5f;
+        List<Vector3> curvatureAtPoint = new List<Vector3>();
+        List<Vector3> curvatureDerivedPoints = new List<Vector3>();
+        //https://answers.unity.com/questions/1368390/how-to-calculate-curvature-of-a-path.html
+
+      
+        List<Line> AssessCurvature(Contour c)
+        {
+            List<Line> simplifiedContour = new List<Line>();
+            curvatureAtPoint = new List<Vector3>();           
+
+
+            int currentIndex = 0;
+            int count = 0;
+            //while (currentIndex < c.lines.Count)
+            {
+                for (int x = minSampleOffset; x <= curvatureSampleCount; x++)
+                {
+                    // Start at point, check curvature of next few points                    
+                    int middleIndex = currentIndex + x;
+                    int endIndex = currentIndex + x * 2;
+                  
+                    if(endIndex >= c.lines.Count)
+                    {
+                        simplifiedContour.Add(new Line() { p0 = c.lines[currentIndex].p0, p1 = c.lines[0].p0 });
+                        break;
+                    }
+
+                    float curvature = CurvatureFrom3Points(c.lines[currentIndex].p0, c.lines[middleIndex].p0, c.lines[endIndex].p0);
+                    if (curvature < curveCutoff || x == curvatureSampleCount || endIndex >= c.lines.Count)
+                    {
+                        //print("added " + curvature);
+                        simplifiedContour.Add(new Line() { p0 = c.lines[currentIndex].p0, p1 = c.lines[endIndex].p0 });
+                        curvatureAtPoint.Add(new Vector3(c.lines[currentIndex].p0.x, c.lines[currentIndex].p0.y, .5f + curvature));
+                        curvatureAtPoint.Add(new Vector3(c.lines[endIndex].p0.x, c.lines[endIndex].p0.y, .5f + curvature));
+                        currentIndex = endIndex;
+                        x = minSampleOffset;
+                        count++;
+                        if (count > 1000 || currentIndex >= c.lines.Count)
+                            break;                    
+                    }                  
+                }
+            }
+
+            return simplifiedContour;
+        }
+
+
+
+        /**
+         * Finds the center of the circle passing through the points p1, p2 and p3.
+         * (NaN, NaN) will be returned if the points are colinear.
+         */
+
+        float CurvatureFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
+        {
+            var cc = CircleCenterFrom3Points(p1, p2, p3);
+            var radius = (cc - p1).magnitude;
+            radius = Mathf.Max(radius, 0.0001f);
+            return 1f/radius;
+        }
+
+        static Vector2 CircleCenterFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
+        {
+            float temp = p2.sqrMagnitude;
+            float bc = (p1.sqrMagnitude - temp) / 2.0f;
+            float cd = (temp - p3.sqrMagnitude) / 2.0f;
+            float det = (p1.x - p2.x) * (p2.y - p3.y) - (p2.x - p3.x) * (p1.y - p2.y);
+            if (Mathf.Abs(det) < 1.0e-6)
+            {
+                return new Vector2(float.NaN, float.NaN);
+            }
+            det = 1 / det;
+            return new Vector2((bc * (p2.y - p3.y) - cd * (p1.y - p2.y)) * det, ((p1.x - p2.x) * cd - (p2.x - p3.x) * bc) * det);
+        }
+
+        float PointDistFromLine(Vector2 startp, Vector2 endp, Vector2 p)
+        {
+            float a = (startp - endp).magnitude;
+            float b = (startp - p).magnitude;
+            float c = (endp - p).magnitude;
+            float s = (a + b + c) / 2f;
+            float distance = 2 * Mathf.Sqrt(s * (s - a) * (s - b) * (s - c)) / a;
+            return distance;
+        }
 
 
         //
@@ -656,9 +769,15 @@ namespace SVGGenerator
 
             Gizmos.DrawSphere(debugPos * pixelToWorldScalar, debugPosScale);
 
+            foreach(Vector3 curveaturePoint in curvatureAtPoint)
+            {
+                //Gizmos.color = Color.yellow * curveaturePoint.z;
+                Gizmos.DrawSphere(new Vector3(curveaturePoint.x, curveaturePoint.y, 0) * pixelToWorldScalar, (.1f + curveaturePoint.z) * debugPosScale);
+            }
+
             // DRAW CONTOUR START AND ENDS
             //
-           
+
             foreach (TracedRegion region in tracedRegions)
             {
                 Gizmos.color = region.col;
