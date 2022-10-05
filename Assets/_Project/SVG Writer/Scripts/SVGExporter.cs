@@ -60,44 +60,60 @@ namespace SVGGenerator
     [System.Serializable]
     public class TracedRegion
     {
-        public RegionSelectionType regionSelectionType = RegionSelectionType.Value;
+        public enum FillType
+        {
+            None,
+            ScanLine,
+            Stipple,
+        }
 
+        public RegionSelectionType regionSelectionType = RegionSelectionType.Value;
+        public FillType fillType = FillType.ScanLine;
         public Color col;
 
+        [HideInInspector]
         public bool generateMinContour = true;
         public bool generateMaxContour = true;
-        public bool generateScanLines = true;
-
         public bool debugDisable = false;
 
+        [Header("REGIONS")]
         [Range(0, 1)]
         public float minRange = .4f;
         [Range(0, 1)]
         public float maxRange = .5f;
-
         [HideInInspector]
         public float prevMinRange = .4f, prevMaxRange = .5f;
 
-        [Range(0, 1)]
-        public float scanLineDensity = .3f;
 
+        [Header("FILL")]
+        [Range(0, 1)]
+        public float fillDensity = .3f;
+
+        [Header("VISIBILITY")]
         public bool contourMinVisibility = true;
         public bool contourMaxVisibility = true;
         public bool fillLinesVisibility = true;
 
 
-        //[HideInInspector]
+        [HideInInspector]
         public List<Contour> minContours = new List<Contour>();
-        //[HideInInspector]
+        [HideInInspector]
         public List<Contour> maxContours = new List<Contour>();
 
-        //[HideInInspector]
+        [HideInInspector]
         public List<Line> fillLines = new List<Line>();
+        [HideInInspector]
+        public float[,] regionMap;
+        public float areaInPixels;
+        public Vector4 bounds;
 
         public void Trace(SVGExporter svgExporter)
         {
             if (debugDisable)
                 return;
+
+
+            svgExporter.GenerateRegionMap(this);
 
             minContours.Clear();
             maxContours.Clear();
@@ -113,9 +129,18 @@ namespace SVGGenerator
                 svgExporter.TraceContour(this, maxContours, maxRange);
             }
 
-            if (generateScanLines)
-                fillLines = svgExporter.TraceScaneLine(this);
-
+            switch(fillType)
+            {
+                case FillType.ScanLine:
+                    fillLines = svgExporter.ScanLineFill(this);
+                    break;
+                case FillType.Stipple:
+                    svgExporter.StippleFill(this);
+                    break;
+                case FillType.None:
+                    break;
+            }
+            
 
             Debug.Log($"Region trace complete - Contours: {minContours.Count + maxContours.Count}  Fill lines: {fillLines.Count}");
         }
@@ -155,20 +180,53 @@ namespace SVGGenerator
         public float debugContourOffset = .01f;
 
 
-
+        // HELPER PROPS
+        //
         private Vector2 pixelMidpoint => new Vector2(tex.width * .5f, tex.height * .5f);
-        private Vector2 pixelMidpointWorldSpace => new Vector2(tex.width * .5f, tex.height * .5f) * pixelToWorldScalar;       
-
-
-        private Color[] pixelCols;
-
+        private Vector2 pixelMidpointWorldSpace => new Vector2(tex.width * .5f, tex.height * .5f) * pixelToWorldScalar;
         #endregion
 
 
-       
-        //
+        #region FUNCTIONS
+
         // VECTOR GENERATION FUNCTIONS
         //
+        public void GenerateRegionMap(TracedRegion region)
+        {
+            region.regionMap = new float[tex.width, tex.height];
+          
+            int xMin = 9999;
+            int xMax = -9999;
+            int yMin = 9999;
+            int yMax = -9999;
+            int count = 0;
+
+            for (int x = 0; x < tex.width; x++)
+            {
+                for (int y = 0; y < tex.height; y++)
+                {
+                    float val = GetValueAtPixel(region.regionSelectionType, x, y);
+                    if(region.minRange < val && val < region.maxRange)
+                    {
+                        region.regionMap[x, y] = val;
+
+                        xMin = Mathf.Min(x, xMin);
+                        xMax = Mathf.Max(x, xMax);
+                        yMin = Mathf.Min(y, yMin);
+                        yMax = Mathf.Max(y, yMax);
+                        count++;
+                    }
+                    else
+                    {
+                        region.regionMap[x, y] = 0;
+                    }
+                }
+            }
+
+            region.bounds = new Vector4(xMin, yMin, xMax, yMax);
+            region.areaInPixels = count;
+        }
+
         public void TraceContour(TracedRegion region, List<Contour> contourList, float valueCutoff)
         {
             int[,] contourPixels = new int[tex.width, tex.height];
@@ -200,6 +258,7 @@ namespace SVGGenerator
                 new Vector2(-1,1)
             };
 
+            
 
             bool isBorderPixel = GetValueAtPixel(region.regionSelectionType, 0, 0) < valueCutoff;
             for (int x = 0; x < tex.width; x++)
@@ -382,11 +441,11 @@ namespace SVGGenerator
             if (debugPrint) Debug.Log("*************END OF TEXTURE SEARCH REACHED");
         }
 
-        public List<Line> TraceScaneLine(TracedRegion region)
+        public List<Line> ScanLineFill(TracedRegion region)
         {
             List<Line> newLines = new List<Line>();
 
-            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(region.scanLineDensity));
+            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(region.fillDensity));
             int yPixIndex;
             bool drawingLine = false;
             Line newLine = new Line();
@@ -454,21 +513,49 @@ namespace SVGGenerator
             return newLines;
         }
 
+        public void StippleFill(TracedRegion region)
+        {
+            region.fillLines.Clear();
+
+            float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
+            int sampleCount = (int)(boundArea * region.fillDensity);
+            print("Stipple fill count: " + sampleCount);
+
+            for (int i = 0; i < sampleCount; i++)
+            {
+                int x = (int)Mathf.Lerp(region.bounds.x, region.bounds.z, Random.value);
+                int y = (int)Mathf.Lerp(region.bounds.y, region.bounds.w, Random.value);
+
+                if(region.regionMap[x,y] > 0)
+                {
+                    Line newLine = new Line() { p0 = new Vector2(x, y), p1 = new Vector2(x + 1, y), newLine = true };
+                    newLine.p1 = new Vector2(x+1, y+1);
+                    region.fillLines.Add(newLine);
+                }
+            }
+        }
 
 
-        //
         // CREATE & WRITE VECTOR TO FILE
         //
-        [ContextMenu("Test")]
+        [ContextMenu("Generate")]
+        void GenerateTracedRegions()
+        {
+            for (int i = 0; i < tracedRegions.Length; i++)
+            {
+                tracedRegions[i].Trace(this);
+            }
+
+            WriteString();
+        }
+
+
+        [ContextMenu("Output")]
         public void WriteString()
         {
             // CACHE PIXEL COLS
             //
-            pixelCols = tex.GetPixels();
-
             string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
-           
-
             List<Line> lineList = new List<Line>();
             List<Contour> allContours = new List<Contour>();
 
@@ -480,7 +567,7 @@ namespace SVGGenerator
             {
                 testSVGStringHeader += @"""<g> <path style = ""fill:none;"" d = """;
 
-                region.Trace(this);
+                //region.Trace(this);
 
                 foreach(Contour c in region.minContours)
                 {
@@ -593,11 +680,7 @@ namespace SVGGenerator
             dotP = Mathf.Clamp(dotP, 0f, magnitudeMax);
             return origin + heading * dotP;
         }
-
-        public Transform start;
-        public Transform end;
-        public Transform point;
-
+               
         float DistanceOfPointFromLine(Vector2 origin, Vector2 end, Vector2 point)
         {
             float a = Vector2.Distance(origin, end);
@@ -655,6 +738,8 @@ namespace SVGGenerator
                     }
                 }
             }
+
+            WriteString();
         }
 
         [Header("Simplify")]
@@ -844,5 +929,7 @@ namespace SVGGenerator
             //    }
             //}
         }
+
+        #endregion
     }
 }
