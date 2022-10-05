@@ -519,17 +519,29 @@ namespace SVGGenerator
 
             float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
             int sampleCount = (int)(boundArea * region.fillDensity);
-            print("Stipple fill count: " + sampleCount);
+            Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
 
-            for (int i = 0; i < sampleCount; i++)
+            List<Vector2> poisonDiscSampledPoints =  PoissonDiscSampling.GeneratePoints
+            (
+                radius: Mathf.Lerp(6,30, 1f - region.fillDensity),
+                sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
+            );
+            print("Stipple fill count: " + sampleCount + "     poisonDiscSampledPoints: " + poisonDiscSampledPoints.Count);
+
+            for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
             {
-                int x = (int)Mathf.Lerp(region.bounds.x, region.bounds.z, Random.value);
-                int y = (int)Mathf.Lerp(region.bounds.y, region.bounds.w, Random.value);
+                Vector2 poisonDiscSample = poisonDiscSampledPoints[i];
+                //int x = (int)Mathf.Lerp(region.bounds.x, region.bounds.z, Random.value);
+                //int y = (int)Mathf.Lerp(region.bounds.y, region.bounds.w, Random.value);
 
-                if(region.regionMap[x,y] > 0)
+                if(region.regionMap[(int)(poisonDiscSample.x + boundsOffset.x), (int)(poisonDiscSample.y + boundsOffset.y)] > 0)
                 {
-                    Line newLine = new Line() { p0 = new Vector2(x, y), p1 = new Vector2(x + 1, y), newLine = true };
-                    newLine.p1 = new Vector2(x+1, y+1);
+                    Line newLine = new Line()
+                    { 
+                        p0 = poisonDiscSample + boundsOffset,
+                        p1 = poisonDiscSample + new Vector2(1, 1) + boundsOffset,
+                        newLine = true 
+                    };                   
                     region.fillLines.Add(newLine);
                 }
             }
