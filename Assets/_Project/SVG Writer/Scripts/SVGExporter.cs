@@ -65,9 +65,19 @@ namespace SVGGenerator
             None,
             ScanLine,
             Stipple,
+            StippleDash,
+        }
+
+        public enum ContourType
+        {
+            None,
+            Min,
+            Max,
+            MinMax
         }
 
         public RegionSelectionType regionSelectionType = RegionSelectionType.Value;
+        public ContourType contourType = ContourType.Min;
         public FillType fillType = FillType.ScanLine;
         public Color col;
 
@@ -112,30 +122,39 @@ namespace SVGGenerator
             if (debugDisable)
                 return;
 
-
             svgExporter.GenerateRegionMap(this);
 
             minContours.Clear();
             maxContours.Clear();
             fillLines.Clear();
 
-            if (generateMinContour)
+            switch (contourType)
             {
-                svgExporter.TraceContour(this, minContours, minRange);
+                case ContourType.None:
+                    break;
+                case ContourType.Min:
+                    svgExporter.TraceContour(this, minContours, minRange);
+                    break;
+                case ContourType.Max:
+                    svgExporter.TraceContour(this, maxContours, maxRange);
+                    break;
+                case ContourType.MinMax:
+                    svgExporter.TraceContour(this, minContours, minRange);
+                    svgExporter.TraceContour(this, maxContours, maxRange);
+                    break;
             }
 
-            if (generateMaxContour)
-            {
-                svgExporter.TraceContour(this, maxContours, maxRange);
-            }
 
-            switch(fillType)
+            switch (fillType)
             {
                 case FillType.ScanLine:
                     fillLines = svgExporter.ScanLineFill(this);
                     break;
                 case FillType.Stipple:
-                    svgExporter.StippleFill(this);
+                    svgExporter.StippleFill(this, Vector2.one);
+                    break;
+                case FillType.StippleDash:
+                    svgExporter.StippleFill(this, new Vector2(20, 0));
                     break;
                 case FillType.None:
                     break;
@@ -513,7 +532,7 @@ namespace SVGGenerator
             return newLines;
         }
 
-        public void StippleFill(TracedRegion region)
+        public void StippleFill(TracedRegion region, Vector2 stippleLength)
         {
             region.fillLines.Clear();
 
@@ -539,7 +558,7 @@ namespace SVGGenerator
                     Line newLine = new Line()
                     { 
                         p0 = poisonDiscSample + boundsOffset,
-                        p1 = poisonDiscSample + new Vector2(1, 1) + boundsOffset,
+                        p1 = poisonDiscSample + stippleLength + boundsOffset,
                         newLine = true 
                     };                   
                     region.fillLines.Add(newLine);

@@ -802,105 +802,41 @@ MonoBehaviour:
   startClockwize: 1
   tracedRegions:
   - regionSelectionType: 1
-    fillType: 1
+    contourType: 0
+    fillType: 3
     col: {r: 0.06620952, g: 0.054957304, b: 0.8962264, a: 1}
     generateMinContour: 0
-    generateMaxContour: 1
+    generateMaxContour: 0
     debugDisable: 0
     minRange: 0.073
-    maxRange: 0.229
+    maxRange: 0.23
     prevMinRange: 0.073
-    prevMaxRange: 0.229
-    fillDensity: 0.3
+    prevMaxRange: 0.23
+    fillDensity: 0.8
     contourMinVisibility: 1
     contourMaxVisibility: 1
     fillLinesVisibility: 1
     minContours: []
-    maxContours:
-    - startPix: {x: 62, y: 494}
-      endPix: {x: 62, y: 494}
-      endCondition: 
-    - startPix: {x: 228, y: 873}
-      endPix: {x: 228, y: 873}
-      endCondition: 
-    - startPix: {x: 244, y: 887}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 248, y: 891}
-      endPix: {x: 248, y: 891}
-      endCondition: 
-    - startPix: {x: 276, y: 910}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 278, y: 911}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 356, y: 950}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 359, y: 951}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 370, y: 955}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 373, y: 956}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 915, y: 330}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 915, y: 332}
-      endPix: {x: 915, y: 332}
-      endCondition: 
-    - startPix: {x: 920, y: 344}
-      endPix: {x: 920, y: 344}
-      endCondition: 
-    - startPix: {x: 924, y: 352}
-      endPix: {x: 924, y: 352}
-      endCondition: 
-    - startPix: {x: 930, y: 372}
-      endPix: {x: 0, y: 0}
-      endCondition: 
-    - startPix: {x: 931, y: 374}
-      endPix: {x: 931, y: 374}
-      endCondition: 
-    - startPix: {x: 935, y: 388}
-      endPix: {x: 0, y: 0}
-      endCondition: 
+    maxContours: []
     areaInPixels: 168779
     bounds: {x: 63, y: 51, z: 935, w: 956}
   - regionSelectionType: 1
-    fillType: 1
+    contourType: 0
+    fillType: 3
     col: {r: 0.87167346, g: 0.8980392, b: 0.054901943, a: 1}
     generateMinContour: 0
-    generateMaxContour: 1
+    generateMaxContour: 0
     debugDisable: 0
-    minRange: 0.229
+    minRange: 0.23
     maxRange: 0.616
-    prevMinRange: 0.229
+    prevMinRange: 0.23
     prevMaxRange: 0.616
-    fillDensity: 0.2
+    fillDensity: 0.5
     contourMinVisibility: 1
     contourMaxVisibility: 1
     fillLinesVisibility: 1
     minContours: []
-    maxContours:
-    - startPix: {x: 62, y: 478}
-      endPix: {x: 62, y: 478}
-      endCondition: 
-    - startPix: {x: 404, y: 760}
-      endPix: {x: 404, y: 760}
-      endCondition: 
-    - startPix: {x: 725, y: 917}
-      endPix: {x: 725, y: 917}
-      endCondition: 
-    - startPix: {x: 880, y: 764}
-      endPix: {x: 880, y: 764}
-      endCondition: 
-    - startPix: {x: 904, y: 701}
-      endPix: {x: 904, y: 701}
-      endCondition: 
+    maxContours: []
     areaInPixels: 279744
     bounds: {x: 62, y: 50, z: 952, w: 977}
   debugPos: {x: 1023, y: 1023, z: 0}
