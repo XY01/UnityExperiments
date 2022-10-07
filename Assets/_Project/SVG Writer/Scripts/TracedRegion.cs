@@ -8,9 +8,18 @@ namespace SVGGenerator
     public class TracedRegion
     {
         public bool debugDisable = false;
+     
+       
+
+        [Header("SELECTION"),ColorUsage(false)]
         public Color col;
         public ImageValueSelectionType imageValueSelectionType = ImageValueSelectionType.Brightness;
-
+        [Range(0, 1)]
+        public float minRange = .4f;
+        [Range(0, 1)]
+        public float maxRange = .5f;
+        [HideInInspector]
+        public float prevMinRange = .4f, prevMaxRange = .5f;
 
         [Header("CONTOUR")]
         public ContourType contourType = ContourType.Min;
@@ -25,13 +34,7 @@ namespace SVGGenerator
         public float fillDensityHigh = .6f;
 
 
-        [Header("RANGE")]
-        [Range(0, 1)]
-        public float minRange = .4f;
-        [Range(0, 1)]
-        public float maxRange = .5f;
-        [HideInInspector]
-        public float prevMinRange = .4f, prevMaxRange = .5f;
+        
 
 
         [Header("SIMPLIFY")]
@@ -328,7 +331,7 @@ namespace SVGGenerator
                         //else
 
 
-
+                        newContour.processedLines = newContour.lines;
                         contourList.Add(newContour);
 
                         // ADD CONTOUR TO LIST
