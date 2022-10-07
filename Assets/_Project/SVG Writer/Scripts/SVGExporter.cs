@@ -38,10 +38,10 @@ namespace SVGGenerator
 
 
 
-    public enum RegionSelectionType
+    public enum ImageValueSelectionType
     {
         Hue,
-        Value,
+        Brightness,
         Saturation
     }
 
@@ -54,22 +54,17 @@ namespace SVGGenerator
         #region VARIABLES       
         public Texture2D tex;
         private const float pixelToWorldScalar = .01f;
-
         public Transform imageQuad;
         public Material imageQuadMat;
         public Transform imageQuad_Original;
         public Material imageQuadMat_Original;
 
-
         [Header("CONTOURS")]
         public int maxContours = 500;
-        public bool startClockwize = true;
-        private int maxContourSampleCount = 2;
-
+        public bool startClockwize = true;    
 
         [Header("REGIONS")]
-        public TracedRegion[] tracedRegions;
-              
+        public TracedRegion[] tracedRegions;              
 
         [Header("DEBUG")]
         public Vector3 debugPos;
@@ -80,542 +75,9 @@ namespace SVGGenerator
         public bool debugDrawAllLines = true;
         public float debugContourOffset = .01f;
 
-
         // HELPER PROPS
-        //
-        private Vector2 pixelMidpoint => new Vector2(tex.width * .5f, tex.height * .5f);
         private Vector2 pixelMidpointWorldSpace => new Vector2(tex.width * .5f, tex.height * .5f) * pixelToWorldScalar;
         #endregion
-
-
-        #region FUNCTIONS
-
-        #region VECTOR GENERATION FUNCTIONS
-        
-        public void GenerateRegionMap(TracedRegion region)
-        {
-            region.regionMap = new float[tex.width, tex.height];
-          
-            int xMin = 9999;
-            int xMax = -9999;
-            int yMin = 9999;
-            int yMax = -9999;
-            int count = 0;
-
-            for (int x = 0; x < tex.width; x++)
-            {
-                for (int y = 0; y < tex.height; y++)
-                {
-                    float val = GetValueAtPixel(region.regionSelectionType, x, y);
-                    if(region.minRange < val && val < region.maxRange)
-                    {
-                        region.regionMap[x, y] = val;
-
-                        xMin = Mathf.Min(x, xMin);
-                        xMax = Mathf.Max(x, xMax);
-                        yMin = Mathf.Min(y, yMin);
-                        yMax = Mathf.Max(y, yMax);
-                        count++;
-                    }
-                    else
-                    {
-                        region.regionMap[x, y] = 0;
-                    }
-                }
-            }
-
-            region.bounds = new Vector4(xMin, yMin, xMax, yMax);
-            region.areaInPixels = count;
-        }
-
-        public void TraceContour(TracedRegion region, List<Contour> contourList, float valueCutoff)
-        {
-            int[,] contourPixels = new int[tex.width, tex.height];
-            int debugContourSampleCount;
-            int debugMaxSamplesPerContour = 40000;
-            int contourCount = 0;
-
-            Vector2[] neighborsClockwize = new Vector2[8]
-            {
-                new Vector2(-1,0),
-                new Vector2(-1,1),
-                new Vector2(0,1),
-                new Vector2(1,1),
-                new Vector2(1,0),
-                new Vector2(1,-1),
-                new Vector2(0,-1),
-                new Vector2(-1,-1),
-            };
-
-            Vector2[] neighborsAntiClockwize = new Vector2[8]
-            {
-                new Vector2(-1,0),
-                new Vector2(-1,-1),
-                new Vector2(0,-1),
-                new Vector2(1,-1),
-                new Vector2(1,0),
-                new Vector2(1,1),
-                new Vector2(0,1),
-                new Vector2(-1,1)
-            };
-
-            
-
-            bool isBorderPixel = GetValueAtPixel(region.regionSelectionType, 0, 0) < valueCutoff;
-            for (int x = 0; x < tex.width; x++)
-            {
-                for (int y = 0; y < tex.height; y++)
-                {
-                    if (contourCount >= maxContours)
-                    {
-                        Debug.Log("*************MAX CONTOURS REACHED");
-                        return;
-                    }
-
-                    debugPos = new Vector2(x, y);
-
-                    bool prevIsBorderPix = isBorderPixel;
-                    isBorderPixel = GetValueAtPixel(region.regionSelectionType, x, y) < valueCutoff; ;
-
-                    //
-                    // FIND PIXEL THAT CROSSES A BORDER
-                    //
-                    if (isBorderPixel && !prevIsBorderPix && GetValueAtPixel(region.regionSelectionType, x, y) < valueCutoff &&
-                        contourPixels[x, y] == 0)
-                    {
-                        debugContourSampleCount = 0;
-
-                        // TRACE CONTOUR
-                        //
-                        Vector2 startPix = new Vector2(x, y);
-                        Vector2 currentContourPix = new Vector2(x, y);
-
-                        Contour newContour = new Contour() { startPix = startPix };
-
-                        bool clockwise = startClockwize;
-
-                        contourPixels[x, y]++;
-                        Line newLine = new Line() { p0 = startPix, newLine = true };
-
-                        // DEBUG
-                        //                  
-                        if (debugPrint) Debug.Log("*************FOUND BORDER PIXEL: " + currentContourPix);
-
-                        // SEARCH ADJASCENT PIXELS CLOCKWISE UNTIL FINDING A BLACK PIXEL THAT COMES AFTER A WHITE PIXEL
-                        //                 
-                        int neighborIndex = 0;
-                        for (int i = 0; i <= neighborsClockwize.Length; i++)
-                        {
-                            // DEBUG
-                            //
-                            debugContourSampleCount++;
-                            if (debugContourSampleCount > debugMaxSamplesPerContour)
-                            {
-                                if (debugPrint) Debug.Log(" ENDING CONTOUR: Max samples per contour reached");
-                                break;
-                            }
-
-
-
-                            // GET NEIGHBOR COORDS, EITHER CLOCK OR ANTI CLOCKWISE
-                            //
-                            neighborIndex %= neighborsClockwize.Length;
-                            int searchX, searchY;
-                            searchX = clockwise ? (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x : (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x;
-                            searchY = clockwise ? (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y : (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y;
-
-
-
-                            // IF OUTSIDE OF THE IMAGE BOUNDS THEN CONT TO NEXT NEIGHBOR
-                            //
-                            if (searchX < 0 || searchY < 0 || searchX == tex.width || searchY == tex.height)
-                                continue;
-
-
-                            // CHECK TO SEE IF THIS PIXEL HAS BEEN SEARCHED BEFORE
-                            //
-                            if (contourPixels[searchX, searchY] >= maxContourSampleCount)
-                            {
-                                if (debugPrint) Debug.Log("********  ENDING CONTOUR:    Sampling contour pixel more than twice, Breaking");
-                                break;
-                            }
-
-                            // CHECK TO SEE IF THE SAMPLED PIXEL IS START OR END OF PREV CONTOUR
-                            //
-                            foreach (Contour c in contourList)
-                            {
-                                if (c.startPix == new Vector2(searchX, searchY) || c.endPix == new Vector2(searchX, searchY))
-                                {
-                                    if (debugPrint) Debug.Log("********  ENDING CONTOUR:    Sampled start or end of other contour");
-                                    break;
-                                }
-                            }
-
-                            // SET FOUND PIXEL TO CURRENT POS AND ITERATE
-                            //
-                            if (GetValueAtPixel(region.regionSelectionType, searchX, searchY) < valueCutoff)
-                            {
-                                if (debugPrint) print($"-------   Found contour: {searchX} {searchY} @   nIndex:  {neighborIndex}");
-
-                                switch (neighborIndex)
-                                {
-                                    case 0:
-                                        neighborIndex = 6;
-                                        break;
-                                    case 1:
-                                        neighborIndex = 6;
-                                        break;
-                                    case 2:
-                                        neighborIndex = 0;
-                                        break;
-                                    case 3:
-                                        neighborIndex = 0;
-                                        break;
-                                    case 4:
-                                        neighborIndex = 2;
-                                        break;
-                                    case 5:
-                                        neighborIndex = 2;
-                                        break;
-                                    case 6:
-                                        neighborIndex = 4;
-                                        break;
-                                    case 7:
-                                        neighborIndex = 4;
-                                        break;
-                                }
-
-
-                                i = 0;
-                                Vector2 newContourPixel = new Vector2(searchX, searchY);
-                                newLine.p1 = newContourPixel;
-
-                                // ADD LINES TO CONTOUR AND FULL LINES LIST
-                                //
-                                newContour.lines.Add(newLine);
-
-                                contourPixels[searchX, searchY]++;
-
-                                currentContourPix = newContourPixel;
-                                newLine = new Line() { p0 = currentContourPix, newLine = false };
-
-                                newContour.endPix = currentContourPix;
-
-                                if (currentContourPix == startPix)
-                                {
-                                    if (debugPrint) print("ENDING CONTOUR:  BACK TO START END CONTOUR");
-                                    break;
-                                }
-                            }
-                            else
-                            {
-                                neighborIndex++;
-                            }
-
-                            if (i == 7 && debugPrint)
-                                print("ENDING CONTOUR:  NO NEIGHBORS FOUND");
-                        }
-
-                        // IF CONTOUR DIDNT MAKE IT BACK TO START, TRY COUNTER CLOCKWIZE FROM START
-                        //
-                        //if(clockwise && !newContour.closedContour)
-                        //{
-                        //    clockwise = false;
-                        //    prevContourPix = newContour.startPix;
-                        //    currentContourPix = newContour.startPix;
-                        //    neighborIndex = 0;
-                        //}
-                        //else
-
-
-
-                        contourList.Add(newContour);
-
-                        // ADD CONTOUR TO LIST
-                        //
-                        if (debugPrint) Debug.Log("ADDING NEW CONTOUR");
-                        contourCount++;
-                    }
-                }
-            }
-
-            if (debugPrint) Debug.Log("*************END OF TEXTURE SEARCH REACHED");
-        }
-
-        public List<Line> ScanLineFill(TracedRegion region)
-        {
-            List<Line> newLines = new List<Line>();
-
-            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(region.fillDensityLow));
-            int yPixIndex;
-            bool drawingLine = false;
-            Line newLine = new Line();
-            int startY = Random.Range(0, yIncrement);
-
-            for (int y = startY; y < tex.height; y += yIncrement)
-            {
-                yPixIndex = y;
-
-                for (int x = 0; x < tex.width; x++)
-                {
-                    // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
-                    //
-                    if (drawingLine && x == tex.width - 1)// || lineDist > maxLineLength)
-                    {
-                        EndLine(x, yPixIndex);
-                    }
-
-                    //
-                    // IF DARK ENOUGH, START DRAWING LINE
-                    //
-                    float valueSample = GetValueAtPixel(region.regionSelectionType, x, yPixIndex);
-
-                    //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
-
-                    if (!drawingLine)
-                    {
-                        if (valueSample > region.minRange && valueSample < region.maxRange)
-                        {
-                            if (newLines == null)
-                                newLines = new List<Line>();
-
-                            // START NEW LINE
-                            //
-                            drawingLine = true;
-                            newLine = new Line() { p0 = new Vector2(x, yPixIndex), newLine = true };
-                        }
-                    }
-                    //
-                    // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
-                    //
-                    else
-                    {
-                        if (valueSample < region.minRange || valueSample > region.maxRange || x == tex.width - 1)
-                        {
-                            EndLine(x - 1, yPixIndex);
-                        }
-                    }
-                }
-            }
-
-            void EndLine(int x, int y)
-            {
-                // END LINE
-                //
-                drawingLine = false;
-
-                if (new Vector2(x, y) != newLine.p0)
-                {
-                    newLine.p1 = new Vector2(x, y);
-                    newLines.Add(newLine);
-                }
-            }
-
-            return newLines;
-        }
-
-        public void StippleFill(TracedRegion region, Vector2 stippleLength)
-        {
-            region.fills.Clear();
-
-            float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
-            int sampleCount = (int)(boundArea * region.fillDensityLow);
-            Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
-
-            List<Vector2> poisonDiscSampledPoints =  PoissonDiscSampling.GeneratePoints
-            (
-                radius: Mathf.Lerp(6,30, 1f - region.fillDensityLow),
-                sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
-            );
-            print("Stipple fill count: " + sampleCount + "     poisonDiscSampledPoints: " + poisonDiscSampledPoints.Count);
-
-            for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
-            {
-                Vector2 poisonDiscSample = poisonDiscSampledPoints[i];              
-
-                if(region.regionMap[(int)(poisonDiscSample.x + boundsOffset.x), (int)(poisonDiscSample.y + boundsOffset.y)] > 0)
-                {
-                    Line newLine = new Line()
-                    { 
-                        p0 = poisonDiscSample + boundsOffset,
-                        p1 = poisonDiscSample + stippleLength + boundsOffset,
-                        newLine = true 
-                    };                   
-                    region.fills.Add(newLine);
-                }
-            }
-        }
-
-        public void StippleFillGradient(TracedRegion region, Vector2 stippleLength, float densityLower, float densityUpper, int gradientLevels = 5)
-        {
-            region.fills.Clear();
-
-            float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
-            int sampleCount = (int)(boundArea * region.fillDensityLow);
-            Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
-
-
-            //
-            // CREATE LIST OF SAMPLES FOR EACH LEVEL OF GRADIENT
-            //
-            List<List<Vector2>> poissonSampleLevels = new List<List<Vector2>>();
-            for (int i = 0; i < gradientLevels; i++)
-            {
-                float norm = i / (float)(gradientLevels - 1);
-                float lowDensity = Mathf.Lerp(2, 90, region.fillDensityLow);
-                float highDensity = Mathf.Lerp(2, 90, region.fillDensityHigh);
-                List<Vector2> newSample = PoissonDiscSampling.GeneratePoints
-                (
-                    radius: Mathf.Lerp(lowDensity, highDensity, norm),
-                    sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
-                );
-                poissonSampleLevels.Add(newSample);
-            }
-
-            float densityRange = densityUpper - densityLower;
-            float levelRange = densityRange / (float)gradientLevels;
-         
-
-            //
-            // For each sampled level
-            //
-            for (int j = 0; j < poissonSampleLevels.Count; j++)
-            {
-                List<Vector2> poisonDiscSampledPoints = poissonSampleLevels[j];
-
-                float valueMin = densityLower + (levelRange * j);
-                float valueMax = valueMin + levelRange;
-
-                print($"valueMin  {valueMin}   valueMax  {valueMax}");
-
-                //
-                // Iterate through each sample and check if the region value falls within its range
-                //
-                for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
-                {
-                    // If in the region
-                    //
-                    Vector2 startPos = poisonDiscSampledPoints[i] + boundsOffset;
-                    float startRegionValue = region.regionMap[(int)(startPos.x), (int)(startPos.y)];
-                    if (startRegionValue > valueMin && startRegionValue < valueMax)
-                    {
-                        // Refine stipple length so that it fits within the region
-                        //
-                        Vector2 refinedStippleLength = Vector2.one;
-                        Vector2 endPoint = startPos +  refinedStippleLength;
-                        for (int x = 0; x < 10; x++)
-                        {
-                            float norm = (float)x / 9.0f;
-                            refinedStippleLength = Vector2.Lerp(Vector2.one, stippleLength, norm);
-                            endPoint = startPos + refinedStippleLength;
-
-                            // If outside of the texture sapce return
-                            if (endPoint.x >= tex.width - 1 || endPoint.y >= tex.height - 1)
-                                break;
-                           
-                            float endRegionValue = region.regionMap[(int)endPoint.x, (int)endPoint.y];
-
-                            // If not inside value range break
-                            if (endRegionValue < valueMin || endRegionValue > valueMax)
-                            {
-                                break;
-                            }
-                        }
-
-                        Line newLine = new Line()
-                        {
-                            p0 = startPos,
-                            p1 = endPoint,
-                            newLine = true
-                        };
-                        region.fills.Add(newLine);
-                    }
-                }
-            }
-        }
-
-        #endregion
-
-        // CREATE & WRITE VECTOR TO FILE
-        //
-        [ContextMenu("Generate")]
-        void GenerateTracedRegions()
-        {
-            for (int i = 0; i < tracedRegions.Length; i++)
-            {
-                tracedRegions[i].Trace(this);
-            }
-
-
-            WriteString();
-        }
-
-
-
-        //
-        // HELPER FUNCTIONS
-        //
-        private float GetValueAtPixel(RegionSelectionType selectionType, int x, int y)
-        {
-            float h, s, v;
-
-
-            // DISCRETE PIXEL SAMPLING
-            //
-            //Color.RGBToHSV(pixelCols[x + y * tex.width], out h, out s, out v);
-
-
-            // BILNEAR SAMPLING
-            //
-            Color col = tex.GetPixelBilinear((float)(x / (float)tex.width), (float)(y / (float)tex.height));
-            Color.RGBToHSV(col, out h, out s, out v);
-
-            switch (selectionType)
-            {
-                case RegionSelectionType.Hue:
-                    return h;
-                case RegionSelectionType.Saturation:
-                    return s;
-                case RegionSelectionType.Value:
-                    return v;
-                default:
-                    return v;
-            }
-        }
-
-        public Vector2 FindNearestPointOnLine(Vector2 origin, Vector2 direction, Vector2 point)
-        {
-            direction.Normalize();
-            Vector2 lhs = point - origin;
-
-            float dotP = Vector2.Dot(lhs, direction);
-            return origin + direction * dotP;
-        }
-
-        public Vector2 FindNearestPointOnDiscreteLine(Vector2 origin, Vector2 end, Vector2 point)
-        {
-            //Get heading
-            Vector2 heading = (end - origin);
-            float magnitudeMax = heading.magnitude;
-            heading.Normalize();
-
-            //Do projection from the point but clamp it
-            Vector2 lhs = point - origin;
-            float dotP = Vector2.Dot(lhs, heading);
-            dotP = Mathf.Clamp(dotP, 0f, magnitudeMax);
-            return origin + heading * dotP;
-        }
-               
-        float DistanceOfPointFromLine(Vector2 origin, Vector2 end, Vector2 point)
-        {
-            float a = Vector2.Distance(origin, end);
-            float b = Vector2.Distance(origin, point);
-            float c = Vector2.Distance(end, point);
-            float s = (a + b + c) / 2;
-            float distance = 2 * Mathf.Sqrt(s * (s - a) * (s - b) * (s - c)) / a;
-
-            return distance;
-        }
 
 
         private void OnValidate()
@@ -640,127 +102,182 @@ namespace SVGGenerator
             }
         }
 
+        [ContextMenu("Generate")]
+        void GenerateTracedRegions()
+        {
+            for (int i = 0; i < tracedRegions.Length; i++)
+            {
+                tracedRegions[i].Trace(this);
+            }
+        }
+
         [ContextMenu("Process contours")]
         void ProcessRegionContours()
         {
             foreach(TracedRegion region in tracedRegions)
             {
-                region.processedMinContours = ProcessContours(region.minContours, region.contourGap);
-                region.processedMaxContours = ProcessContours(region.maxContours, region.contourGap);
+                region.ProcessContours();
             }
         }
-
-        public List<Contour> ProcessContours(List<Contour> contours, int gap)
-        {
-            List<Contour> processedContours = new List<Contour>();
-
-            foreach (Contour c in contours)
-            {
-                Debug.Log("Line prev  " + c.lines.Count);
-                Contour newContour = new Contour();
-                for (int i = 0; i < c.lines.Count; i++)
-                {
-                    if (i % gap == 0)
-                        newContour.lines.Add(new Line() { p0 = c.lines[i].p0, p1 = c.lines[i].p1, newLine = true });
-                }
-
-                Debug.Log("newContour  " + newContour.lines.Count);
-                processedContours.Add(newContour);
-            }
-
-            return processedContours;
-        }
-
 
         [ContextMenu("Simplify")]
         void SimplifyRegions()
         {
             foreach(TracedRegion region in tracedRegions)
             {
-                foreach(Contour c in region.minContours)
+                region.SimplifyContours();
+            }
+        }
+
+        [ContextMenu("Output")]
+        public void WriteString()
+        {
+            // CACHE PIXEL COLS
+            //
+            string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
+            
+            string testSVGStringHeader = $@"<svg width=""{tex.width}"" height=""{tex.height}""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>";
+            //<g> <path style = ""fill:none;"" d = """;
+
+            foreach (TracedRegion region in tracedRegions)
+            {
+                testSVGStringHeader += @"""<g> <path style = ""fill:none;"" d = """;
+
+                foreach (Contour c in region.minContours)
                 {
-                    if (c.lines.Count > 0)
+                    for (int i = 0; i < c.processedLines.Count; i++)
                     {
-                        //c.lines = SimplifyContour(c);
-                        c.lines = AssessContourCurvature(c);
+                        if (i == 0 || c.processedLines[i].newLine)
+                            testSVGStringHeader += $"   M {c.processedLines[i].p0.x} {c.processedLines[i].p0.y}  L {c.processedLines[i].p1.x} {c.processedLines[i].p1.y}";
+                        else
+                            testSVGStringHeader += $"   L {c.processedLines[i].p0.x} {c.processedLines[i].p0.y}  L {c.processedLines[i].p1.x} {c.processedLines[i].p1.y}";
                     }
                 }
 
                 foreach (Contour c in region.maxContours)
                 {
-                    if (c.lines.Count > 0)
+                    for (int i = 0; i < c.processedLines.Count; i++)
                     {
-                        //c.lines = SimplifyContour(c);
-                        c.lines = AssessContourCurvature(c);
+                        if (i == 0 || c.processedLines[i].newLine)
+                            testSVGStringHeader += $"   M {c.processedLines[i].p0.x} {c.processedLines[i].p0.y}  L {c.processedLines[i].p1.x} {c.processedLines[i].p1.y}";
+                        else
+                            testSVGStringHeader += $"   L {c.processedLines[i].p0.x} {c.processedLines[i].p0.y}  L {c.processedLines[i].p1.x} {c.processedLines[i].p1.y}";
                     }
                 }
-            }
 
-            WriteString();
-        }
 
-        [Header("Simplify")]
-        public int minSampleOffset = 3;
-        public int curvatureSampleCount = 10;
-        [Tooltip("Larger > Smaller == More > Less detail")]
-        public float curveCutoff = .5f;
-        List<Vector3> curvatureAtPoint = new List<Vector3>();
-        List<Vector3> curvatureDerivedPoints = new List<Vector3>();
-        //https://answers.unity.com/questions/1368390/how-to-calculate-curvature-of-a-path.html
-
-      
-        List<Line> AssessContourCurvature(Contour c)
-        {
-            List<Line> simplifiedContour = new List<Line>();
-            curvatureAtPoint = new List<Vector3>();    
-
-            int currentIndex = 0;
-            int count = 0;
-            //while (currentIndex < c.lines.Count)
-            {
-                for (int x = minSampleOffset; x <= curvatureSampleCount; x++)
+                // FILL LINES
+                //
+                for (int i = 0; i < region.fill.fillLines.Count; i++)
                 {
-                    // Start at point, check curvature of next few points                    
-                    int middleIndex = currentIndex + x;
-                    int endIndex = currentIndex + x * 2;
-                  
-                    if(endIndex >= c.lines.Count)
-                    {
-                        simplifiedContour.Add(new Line() { p0 = c.lines[currentIndex].p0, p1 = c.lines[0].p0 });
-                        break;
-                    }
-
-                    float curvature = CurvatureFrom3Points(c.lines[currentIndex].p0, c.lines[middleIndex].p0, c.lines[endIndex].p0);
-                    if (curvature < curveCutoff || x == curvatureSampleCount || endIndex >= c.lines.Count)
-                    {
-                        //print("added " + curvature);
-                        simplifiedContour.Add(new Line() { p0 = c.lines[currentIndex].p0, p1 = c.lines[endIndex].p0 });
-                        curvatureAtPoint.Add(new Vector3(c.lines[currentIndex].p0.x, c.lines[currentIndex].p0.y, .5f + curvature));
-                        curvatureAtPoint.Add(new Vector3(c.lines[endIndex].p0.x, c.lines[endIndex].p0.y, .5f + curvature));
-                        currentIndex = endIndex;
-                        x = minSampleOffset;
-                        count++;
-                        if (count > 1000 || currentIndex >= c.lines.Count)
-                            break;                    
-                    }                  
+                    if (i == 0 || region.fill.fillLines[i].newLine)
+                        testSVGStringHeader += $"   M {region.fill.fillLines[i].p0.x} {region.fill.fillLines[i].p0.y}  L {region.fill.fillLines[i].p1.x} {region.fill.fillLines[i].p1.y}";
+                    else
+                        testSVGStringHeader += $"   L {region.fill.fillLines[i].p0.x} {region.fill.fillLines[i].p0.y}  L {region.fill.fillLines[i].p1.x} {region.fill.fillLines[i].p1.y}";
                 }
+
+                testSVGStringHeader += @"""/> </g>";
             }
 
-            return simplifiedContour;
+            testSVGStringHeader += @"</svg>";
+
+
+            // WRITE TO TEXT FILE
+            //
+            StreamWriter writer = new StreamWriter(path, false);
+            writer.WriteLine(testSVGStringHeader);
+            writer.Close();
         }
 
+        public float GetValueAtPixel(ImageValueSelectionType selectionType, int x, int y)
+        {
+            float h, s, v;
+
+
+            // DISCRETE PIXEL SAMPLING
+            //
+            //Color.RGBToHSV(pixelCols[x + y * tex.width], out h, out s, out v);
+
+
+            // BILNEAR SAMPLING
+            //
+            Color col = tex.GetPixelBilinear((float)(x / (float)tex.width), (float)(y / (float)tex.height));
+            Color.RGBToHSV(col, out h, out s, out v);
+
+            switch (selectionType)
+            {
+                case ImageValueSelectionType.Hue:
+                    return h;
+                case ImageValueSelectionType.Saturation:
+                    return s;
+                case ImageValueSelectionType.Brightness:
+                    return v;
+                default:
+                    return v;
+            }
+        }
+
+        // GIZMOS
+        //
+        private void OnDrawGizmos()
+        {
+            if (imageQuadMat.GetTexture("_BaseMap") != tex)
+                imageQuadMat.SetTexture("_BaseMap", tex);
+            if (imageQuadMat_Original.GetTexture("_BaseMap") != tex)
+                imageQuadMat_Original.SetTexture("_BaseMap", tex);
+
+
+
+            // POSITION IMAGE QUAD
+            //
+            imageQuad.transform.position = pixelMidpointWorldSpace;
+            imageQuad.transform.localScale = new Vector3(tex.width * pixelToWorldScalar, tex.height * pixelToWorldScalar);
+            imageQuad_Original.transform.position = pixelMidpointWorldSpace + Vector2.left * tex.width * pixelToWorldScalar;
+            imageQuad_Original.transform.localScale = imageQuad.transform.localScale;
+
+
+            Gizmos.DrawSphere(debugPos * pixelToWorldScalar, debugPosScale);
+
+            // DRAW CONTOUR START AND ENDS
+            //
+            foreach (TracedRegion region in tracedRegions)
+            {
+                Gizmos.color = region.col;
+
+                if (region.contourMinVisibility)
+                {
+                    foreach (Contour c in region.minContours)
+                    {
+                        c.DrawGizmos(pixelToWorldScalar);                       
+                    }
+                }
+
+                if (region.contourMaxVisibility)
+                {
+                    foreach (Contour c in region.maxContours)
+                    {
+                        c.DrawGizmos(pixelToWorldScalar);
+                    }
+                }
+
+                if (region.fillLinesVisibility)
+                {
+                    region.fill.DrawGizmos(pixelToWorldScalar);                   
+                }
+            }
+        }
 
 
         #region HELPER METHODS
-        float CurvatureFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
+        public static float CurvatureFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
         {
             var cc = CircleCenterFrom3Points(p1, p2, p3);
             var radius = (cc - p1).magnitude;
             radius = Mathf.Max(radius, 0.0001f);
-            return 1f/radius;
+            return 1f / radius;
         }
 
-        static Vector2 CircleCenterFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
+        private static Vector2 CircleCenterFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
         {
             float temp = p2.sqrMagnitude;
             float bc = (p1.sqrMagnitude - temp) / 2.0f;
@@ -783,178 +300,41 @@ namespace SVGGenerator
             float distance = 2 * Mathf.Sqrt(s * (s - a) * (s - b) * (s - c)) / a;
             return distance;
         }
-        #endregion
 
 
-        [ContextMenu("Output")]
-        public void WriteString()
+        public Vector2 FindNearestPointOnLine(Vector2 origin, Vector2 direction, Vector2 point)
         {
-            // CACHE PIXEL COLS
-            //
-            string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
-            
-            string testSVGStringHeader = $@"<svg width=""{tex.width}"" height=""{tex.height}""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>";
-            //<g> <path style = ""fill:none;"" d = """;
+            direction.Normalize();
+            Vector2 lhs = point - origin;
 
-            foreach (TracedRegion region in tracedRegions)
-            {
-                testSVGStringHeader += @"""<g> <path style = ""fill:none;"" d = """;
-
-                //region.Trace(this);
-
-                foreach (Contour c in region.processedMinContours)
-                {
-                    for (int i = 0; i < c.lines.Count; i++)
-                    {
-                        if (i == 0 || c.lines[i].newLine)
-                            testSVGStringHeader += $"   M {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                        else
-                            testSVGStringHeader += $"   L {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                    }
-                }
-
-                foreach (Contour c in region.processedMaxContours)
-                {
-                    for (int i = 0; i < c.lines.Count; i++)
-                    {
-                        if (i == 0 || c.lines[i].newLine)
-                            testSVGStringHeader += $"   M {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                        else
-                            testSVGStringHeader += $"   L {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                    }
-                }
-
-
-                // FILL LINES
-                //
-                for (int i = 0; i < region.fills.Count; i++)
-                {
-                    if (i == 0 || region.fills[i].newLine)
-                        testSVGStringHeader += $"   M {region.fills[i].p0.x} {region.fills[i].p0.y}  L {region.fills[i].p1.x} {region.fills[i].p1.y}";
-                    else
-                        testSVGStringHeader += $"   L {region.fills[i].p0.x} {region.fills[i].p0.y}  L {region.fills[i].p1.x} {region.fills[i].p1.y}";
-                }
-
-                testSVGStringHeader += @"""/> </g>";
-            }
-
-
-
-            //for (int i = 0; i < lineList.Count; i++)
-            //{
-            //    if (i == 0 || lineList[i].newLine)
-            //        testSVGStringHeader += $"   M {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
-            //    else
-            //        testSVGStringHeader += $"   L {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
-            //}
-
-            testSVGStringHeader += @"</svg>";
-
-
-            // WRITE TO TEXT FILE
-            //
-            StreamWriter writer = new StreamWriter(path, false);
-            writer.WriteLine(testSVGStringHeader);
-            writer.Close();
+            float dotP = Vector2.Dot(lhs, direction);
+            return origin + direction * dotP;
         }
 
-        //
-        // DEBUG
-        //
-        private void OnDrawGizmos()
+        public Vector2 FindNearestPointOnDiscreteLine(Vector2 origin, Vector2 end, Vector2 point)
         {
-            if (imageQuadMat.GetTexture("_BaseMap") != tex)
-                imageQuadMat.SetTexture("_BaseMap", tex);
-            if (imageQuadMat_Original.GetTexture("_BaseMap") != tex)
-                imageQuadMat_Original.SetTexture("_BaseMap", tex);
+            //Get heading
+            Vector2 heading = (end - origin);
+            float magnitudeMax = heading.magnitude;
+            heading.Normalize();
 
-
-
-            // POSITION IMAGE QUAD
-            //
-            imageQuad.transform.position = pixelMidpointWorldSpace;
-            imageQuad.transform.localScale = new Vector3(tex.width * pixelToWorldScalar, tex.height * pixelToWorldScalar);
-            imageQuad_Original.transform.position = pixelMidpointWorldSpace + Vector2.left * tex.width * pixelToWorldScalar;
-            imageQuad_Original.transform.localScale = imageQuad.transform.localScale;
-
-
-            Gizmos.DrawSphere(debugPos * pixelToWorldScalar, debugPosScale);
-
-            foreach(Vector3 curveaturePoint in curvatureAtPoint)
-            {
-                //Gizmos.color = Color.yellow * curveaturePoint.z;
-                Gizmos.DrawSphere(new Vector3(curveaturePoint.x, curveaturePoint.y, 0) * pixelToWorldScalar, (.1f + curveaturePoint.z) * debugPosScale);
-            }
-
-            // DRAW CONTOUR START AND ENDS
-            //
-
-            foreach (TracedRegion region in tracedRegions)
-            {
-                Gizmos.color = region.col;
-
-                if (region.contourMinVisibility)
-                {
-                    foreach (Contour c in region.processedMinContours)
-                    {
-                        for (int i = 0; i < c.lines.Count; i++)
-                        {
-                            Gizmos.DrawLine(c.lines[i].p0 * pixelToWorldScalar, c.lines[i].p1 * pixelToWorldScalar);
-                        }
-                    }
-                }
-
-                if (region.contourMaxVisibility)
-                {
-                    foreach (Contour c in region.processedMaxContours)
-                    {
-                        for (int i = 0; i < c.lines.Count; i++)
-                        {
-                            Gizmos.DrawLine(c.lines[i].p0 * pixelToWorldScalar, c.lines[i].p1 * pixelToWorldScalar);
-                        }
-                    }
-                }
-
-                if (region.fillLinesVisibility)
-                {
-                    for (int i = 0; i < region.fills.Count; i++)
-                    {
-                        Gizmos.DrawLine(region.fills[i].p0 * pixelToWorldScalar, region.fills[i].p1 * pixelToWorldScalar);
-                    }
-                }
-            }
-
-
-
-            //    float hue = 0;
-            //    int contourCount = 0;
-            //    foreach (Contour c in allContours)
-            //    {
-            //        Gizmos.color = Color.HSVToRGB(hue, 1, 1);
-            //        Gizmos.DrawSphere(c.startPix * pixelToWorldScalar, debugPosScale);
-            //        Gizmos.DrawSphere(c.endPix * pixelToWorldScalar, debugPosScale);
-
-            //        for (int i = 0; i < c.lines.Count; i++)
-            //        {
-            //            Gizmos.DrawLine(c.lines[i].p0 * pixelToWorldScalar + (Vector2.right * contourCount * debugContourOffset), c.lines[i].p1 * pixelToWorldScalar + (Vector2.right * contourCount * debugContourOffset));
-            //        }
-
-            //        hue += 1f / (float)allContours.Count;
-            //        contourCount++;
-            //    }
-            
-
-
-            //if (debugDrawAllLines && lineList != null)
-            //{
-            //    Gizmos.color = Color.white * gizmoLineAlpha;
-            //    for (int i = 0; i < lineList.Count; i++)
-            //    {
-            //        Gizmos.DrawLine(lineList[i].p0 * pixelToWorldScalar, lineList[i].p1 * pixelToWorldScalar);
-            //    }
-            //}
+            //Do projection from the point but clamp it
+            Vector2 lhs = point - origin;
+            float dotP = Vector2.Dot(lhs, heading);
+            dotP = Mathf.Clamp(dotP, 0f, magnitudeMax);
+            return origin + heading * dotP;
         }
 
+        float DistanceOfPointFromLine(Vector2 origin, Vector2 end, Vector2 point)
+        {
+            float a = Vector2.Distance(origin, end);
+            float b = Vector2.Distance(origin, point);
+            float c = Vector2.Distance(end, point);
+            float s = (a + b + c) / 2;
+            float distance = 2 * Mathf.Sqrt(s * (s - a) * (s - b) * (s - c)) / a;
+
+            return distance;
+        }
         #endregion
     }
 }
