@@ -28,10 +28,7 @@ using System.IO;
 
 namespace SVGGenerator
 {
-    #region MINOR CLASSES
-    /// <summary>
-    /// Holds start and end position for a straight line section as well as an instruction to start the line at the first position
-    /// </summary>
+    #region ENUMS  
     public struct Line
     {
         public bool newLine;
@@ -39,17 +36,6 @@ namespace SVGGenerator
         public Vector2 p1;
     }
 
-
-    [System.Serializable]
-    public class Contour
-    {
-        public Vector2 startPix;
-        public Vector2 endPix;
-        public List<Line> lines = new List<Line>();
-        public string endCondition;
-
-        public bool closedContour => startPix == endPix;
-    }
 
 
     public enum RegionSelectionType
@@ -59,127 +45,7 @@ namespace SVGGenerator
         Saturation
     }
 
-    [System.Serializable]
-    public class TracedRegion
-    {
-        public enum FillType
-        {
-            None,
-            ScanLine,
-            Stipple,
-            GradientStipple,
-            StippleDash,
-        }
-
-        public enum ContourType
-        {
-            None,
-            Min,
-            Max,
-            MinMax
-        }
-
-        public RegionSelectionType regionSelectionType = RegionSelectionType.Value;
-        public ContourType contourType = ContourType.Min;
-        public FillType fillType = FillType.ScanLine;
-        public Color col;
-              
-        public bool debugDisable = false;
-
-        [Header("REGIONS")]
-        [Range(0, 1)]
-        public float minRange = .4f;
-        [Range(0, 1)]
-        public float maxRange = .5f;
-        [HideInInspector]
-        public float prevMinRange = .4f, prevMaxRange = .5f;
-
-
-        [Header("FILL")]
-        [Range(0, 1)]
-        public float fillDensityLow = .3f;
-        [Range(0, 1)]
-        public float fillDensityHigh = .6f;
-
-        [Header("VISIBILITY")]
-        public bool contourMinVisibility = true;
-        public bool contourMaxVisibility = true;
-        public bool fillLinesVisibility = true;
-
-        public int contourGap = 0;
-
-
-        [HideInInspector]
-        public List<Contour> minContours = new List<Contour>();
-        [HideInInspector]
-        public List<Contour> maxContours = new List<Contour>();
-        [HideInInspector]
-        public List<Contour> processedMinContours = new List<Contour>();
-        [HideInInspector]
-        public List<Contour> processedMaxContours = new List<Contour>();
-
-
-        [HideInInspector]
-        public List<Line> fillLines = new List<Line>();
-        [HideInInspector]
-        public float[,] regionMap;
-        public float areaInPixels;
-        public Vector4 bounds;
-
-        public void Trace(SVGExporter svgExporter)
-        {
-            if (debugDisable)
-                return;
-
-            svgExporter.GenerateRegionMap(this);
-
-            minContours.Clear();
-            maxContours.Clear();
-            fillLines.Clear();
-
-            switch (contourType)
-            {
-                case ContourType.None:
-                    break;
-                case ContourType.Min:
-                    svgExporter.TraceContour(this, minContours, minRange);
-                    break;
-                case ContourType.Max:
-                    svgExporter.TraceContour(this, maxContours, maxRange);
-                    break;
-                case ContourType.MinMax:
-                    svgExporter.TraceContour(this, minContours, minRange);
-                    svgExporter.TraceContour(this, maxContours, maxRange);
-                    break;
-            }
-
-          
-            processedMinContours = svgExporter.ProcessContours(minContours, contourGap);
-            processedMaxContours = svgExporter.ProcessContours(maxContours, contourGap);
-
-
-            switch (fillType)
-            {
-                case FillType.ScanLine:
-                    fillLines = svgExporter.ScanLineFill(this);
-                    break;
-                case FillType.Stipple:
-                    svgExporter.StippleFill(this, Vector2.one);
-                    break;
-                case FillType.StippleDash:
-                    svgExporter.StippleFill(this, new Vector2(20, 0));
-                    break;
-                case FillType.GradientStipple:
-                    svgExporter.StippleFillGradient(this, Vector2.one, minRange, maxRange, 3);
-                    break;
-                case FillType.None:
-                    break;
-            }
-            
-
-            Debug.Log($"Region trace complete - Contours: {minContours.Count + maxContours.Count}  Fill lines: {fillLines.Count}");
-        }
-    }
+    
     #endregion
 
 
@@ -550,7 +416,7 @@ namespace SVGGenerator
 
         public void StippleFill(TracedRegion region, Vector2 stippleLength)
         {
-            region.fillLines.Clear();
+            region.fills.Clear();
 
             float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
             int sampleCount = (int)(boundArea * region.fillDensityLow);
@@ -575,14 +441,14 @@ namespace SVGGenerator
                         p1 = poisonDiscSample + stippleLength + boundsOffset,
                         newLine = true 
                     };                   
-                    region.fillLines.Add(newLine);
+                    region.fills.Add(newLine);
                 }
             }
         }
 
         public void StippleFillGradient(TracedRegion region, Vector2 stippleLength, float densityLower, float densityUpper, int gradientLevels = 5)
         {
-            region.fillLines.Clear();
+            region.fills.Clear();
 
             float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
             int sampleCount = (int)(boundArea * region.fillDensityLow);
@@ -662,7 +528,7 @@ namespace SVGGenerator
                             p1 = endPoint,
                             newLine = true
                         };
-                        region.fillLines.Add(newLine);
+                        region.fills.Add(newLine);
                     }
                 }
             }
@@ -683,9 +549,6 @@ namespace SVGGenerator
 
             WriteString();
         }
-
-
-      
 
 
 
@@ -819,7 +682,7 @@ namespace SVGGenerator
                     if (c.lines.Count > 0)
                     {
                         //c.lines = SimplifyContour(c);
-                        c.lines = AssessCurvature(c);
+                        c.lines = AssessContourCurvature(c);
                     }
                 }
 
@@ -828,7 +691,7 @@ namespace SVGGenerator
                     if (c.lines.Count > 0)
                     {
                         //c.lines = SimplifyContour(c);
-                        c.lines = AssessCurvature(c);
+                        c.lines = AssessContourCurvature(c);
                     }
                 }
             }
@@ -846,11 +709,10 @@ namespace SVGGenerator
         //https://answers.unity.com/questions/1368390/how-to-calculate-curvature-of-a-path.html
 
       
-        List<Line> AssessCurvature(Contour c)
+        List<Line> AssessContourCurvature(Contour c)
         {
             List<Line> simplifiedContour = new List<Line>();
-            curvatureAtPoint = new List<Vector3>();           
-
+            curvatureAtPoint = new List<Vector3>();    
 
             int currentIndex = 0;
             int count = 0;
@@ -889,11 +751,7 @@ namespace SVGGenerator
 
 
 
-        /**
-         * Finds the center of the circle passing through the points p1, p2 and p3.
-         * (NaN, NaN) will be returned if the points are colinear.
-         */
-
+        #region HELPER METHODS
         float CurvatureFrom3Points(Vector2 p1, Vector2 p2, Vector2 p3)
         {
             var cc = CircleCenterFrom3Points(p1, p2, p3);
@@ -925,6 +783,7 @@ namespace SVGGenerator
             float distance = 2 * Mathf.Sqrt(s * (s - a) * (s - b) * (s - c)) / a;
             return distance;
         }
+        #endregion
 
 
         [ContextMenu("Output")]
@@ -968,12 +827,12 @@ namespace SVGGenerator
 
                 // FILL LINES
                 //
-                for (int i = 0; i < region.fillLines.Count; i++)
+                for (int i = 0; i < region.fills.Count; i++)
                 {
-                    if (i == 0 || region.fillLines[i].newLine)
-                        testSVGStringHeader += $"   M {region.fillLines[i].p0.x} {region.fillLines[i].p0.y}  L {region.fillLines[i].p1.x} {region.fillLines[i].p1.y}";
+                    if (i == 0 || region.fills[i].newLine)
+                        testSVGStringHeader += $"   M {region.fills[i].p0.x} {region.fills[i].p0.y}  L {region.fills[i].p1.x} {region.fills[i].p1.y}";
                     else
-                        testSVGStringHeader += $"   L {region.fillLines[i].p0.x} {region.fillLines[i].p0.y}  L {region.fillLines[i].p1.x} {region.fillLines[i].p1.y}";
+                        testSVGStringHeader += $"   L {region.fills[i].p0.x} {region.fills[i].p0.y}  L {region.fills[i].p1.x} {region.fills[i].p1.y}";
                 }
 
                 testSVGStringHeader += @"""/> </g>";
@@ -1058,9 +917,9 @@ namespace SVGGenerator
 
                 if (region.fillLinesVisibility)
                 {
-                    for (int i = 0; i < region.fillLines.Count; i++)
+                    for (int i = 0; i < region.fills.Count; i++)
                     {
-                        Gizmos.DrawLine(region.fillLines[i].p0 * pixelToWorldScalar, region.fillLines[i].p1 * pixelToWorldScalar);
+                        Gizmos.DrawLine(region.fills[i].p0 * pixelToWorldScalar, region.fills[i].p1 * pixelToWorldScalar);
                     }
                 }
             }
