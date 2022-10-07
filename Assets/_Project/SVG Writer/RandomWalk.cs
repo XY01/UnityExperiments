@@ -38,7 +38,7 @@ public class RandomWalk : MonoBehaviour
         rotationNoise = Mathf.PerlinNoise(currentPos.x + (rotNoiseSpeed * Time.timeSinceLevelLoad), currentPos.y + (rotNoiseSpeed * Time.timeSinceLevelLoad));
         speedNoise = Mathf.PerlinNoise(currentPos.x + (speedNoiseSpeed * Time.timeSinceLevelLoad), currentPos.y + (speedNoiseSpeed * Time.timeSinceLevelLoad));
 
-        FaceRotation(dir, rotationNoise * 360);
+        //FaceRotation(dir, rotationNoise * 360);
 
         // UPDATE POS
         currentPos += dir * speed * delta;

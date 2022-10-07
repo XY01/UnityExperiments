@@ -22,6 +22,8 @@ using System.IO;
 
 // Create shader to mimick final output
 // Show histogram of image to allow for selection of range visually
+// constraint stipple dash to region
+// mask contour tracing by stipple
 
 
 namespace SVGGenerator
@@ -65,6 +67,7 @@ namespace SVGGenerator
             None,
             ScanLine,
             Stipple,
+            GradientStipple,
             StippleDash,
         }
 
@@ -80,10 +83,7 @@ namespace SVGGenerator
         public ContourType contourType = ContourType.Min;
         public FillType fillType = FillType.ScanLine;
         public Color col;
-
-        [HideInInspector]
-        public bool generateMinContour = true;
-        public bool generateMaxContour = true;
+              
         public bool debugDisable = false;
 
         [Header("REGIONS")]
@@ -97,18 +97,27 @@ namespace SVGGenerator
 
         [Header("FILL")]
         [Range(0, 1)]
-        public float fillDensity = .3f;
+        public float fillDensityLow = .3f;
+        [Range(0, 1)]
+        public float fillDensityHigh = .6f;
 
         [Header("VISIBILITY")]
         public bool contourMinVisibility = true;
         public bool contourMaxVisibility = true;
         public bool fillLinesVisibility = true;
 
+        public int contourGap = 0;
+
 
         [HideInInspector]
         public List<Contour> minContours = new List<Contour>();
         [HideInInspector]
         public List<Contour> maxContours = new List<Contour>();
+        [HideInInspector]
+        public List<Contour> processedMinContours = new List<Contour>();
+        [HideInInspector]
+        public List<Contour> processedMaxContours = new List<Contour>();
+
 
         [HideInInspector]
         public List<Line> fillLines = new List<Line>();
@@ -144,6 +153,10 @@ namespace SVGGenerator
                     break;
             }
 
+          
+            processedMinContours = svgExporter.ProcessContours(minContours, contourGap);
+            processedMaxContours = svgExporter.ProcessContours(maxContours, contourGap);
+
 
             switch (fillType)
             {
@@ -155,6 +168,9 @@ namespace SVGGenerator
                     break;
                 case FillType.StippleDash:
                     svgExporter.StippleFill(this, new Vector2(20, 0));
+                    break;
+                case FillType.GradientStipple:
+                    svgExporter.StippleFillGradient(this, Vector2.one, minRange, maxRange, 3);
                     break;
                 case FillType.None:
                     break;
@@ -208,8 +224,8 @@ namespace SVGGenerator
 
         #region FUNCTIONS
 
-        // VECTOR GENERATION FUNCTIONS
-        //
+        #region VECTOR GENERATION FUNCTIONS
+        
         public void GenerateRegionMap(TracedRegion region)
         {
             region.regionMap = new float[tex.width, tex.height];
@@ -464,7 +480,7 @@ namespace SVGGenerator
         {
             List<Line> newLines = new List<Line>();
 
-            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(region.fillDensity));
+            int yIncrement = (int)Mathf.Lerp(tex.height * .1f, 1, Mathf.Clamp01(region.fillDensityLow));
             int yPixIndex;
             bool drawingLine = false;
             Line newLine = new Line();
@@ -537,21 +553,19 @@ namespace SVGGenerator
             region.fillLines.Clear();
 
             float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
-            int sampleCount = (int)(boundArea * region.fillDensity);
+            int sampleCount = (int)(boundArea * region.fillDensityLow);
             Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
 
             List<Vector2> poisonDiscSampledPoints =  PoissonDiscSampling.GeneratePoints
             (
-                radius: Mathf.Lerp(6,30, 1f - region.fillDensity),
+                radius: Mathf.Lerp(6,30, 1f - region.fillDensityLow),
                 sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
             );
             print("Stipple fill count: " + sampleCount + "     poisonDiscSampledPoints: " + poisonDiscSampledPoints.Count);
 
             for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
             {
-                Vector2 poisonDiscSample = poisonDiscSampledPoints[i];
-                //int x = (int)Mathf.Lerp(region.bounds.x, region.bounds.z, Random.value);
-                //int y = (int)Mathf.Lerp(region.bounds.y, region.bounds.w, Random.value);
+                Vector2 poisonDiscSample = poisonDiscSampledPoints[i];              
 
                 if(region.regionMap[(int)(poisonDiscSample.x + boundsOffset.x), (int)(poisonDiscSample.y + boundsOffset.y)] > 0)
                 {
@@ -566,6 +580,95 @@ namespace SVGGenerator
             }
         }
 
+        public void StippleFillGradient(TracedRegion region, Vector2 stippleLength, float densityLower, float densityUpper, int gradientLevels = 5)
+        {
+            region.fillLines.Clear();
+
+            float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
+            int sampleCount = (int)(boundArea * region.fillDensityLow);
+            Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
+
+
+            //
+            // CREATE LIST OF SAMPLES FOR EACH LEVEL OF GRADIENT
+            //
+            List<List<Vector2>> poissonSampleLevels = new List<List<Vector2>>();
+            for (int i = 0; i < gradientLevels; i++)
+            {
+                float norm = i / (float)(gradientLevels - 1);
+                float lowDensity = Mathf.Lerp(2, 90, region.fillDensityLow);
+                float highDensity = Mathf.Lerp(2, 90, region.fillDensityHigh);
+                List<Vector2> newSample = PoissonDiscSampling.GeneratePoints
+                (
+                    radius: Mathf.Lerp(lowDensity, highDensity, norm),
+                    sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
+                );
+                poissonSampleLevels.Add(newSample);
+            }
+
+            float densityRange = densityUpper - densityLower;
+            float levelRange = densityRange / (float)gradientLevels;
+         
+
+            //
+            // For each sampled level
+            //
+            for (int j = 0; j < poissonSampleLevels.Count; j++)
+            {
+                List<Vector2> poisonDiscSampledPoints = poissonSampleLevels[j];
+
+                float valueMin = densityLower + (levelRange * j);
+                float valueMax = valueMin + levelRange;
+
+                print($"valueMin  {valueMin}   valueMax  {valueMax}");
+
+                //
+                // Iterate through each sample and check if the region value falls within its range
+                //
+                for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
+                {
+                    // If in the region
+                    //
+                    Vector2 startPos = poisonDiscSampledPoints[i] + boundsOffset;
+                    float startRegionValue = region.regionMap[(int)(startPos.x), (int)(startPos.y)];
+                    if (startRegionValue > valueMin && startRegionValue < valueMax)
+                    {
+                        // Refine stipple length so that it fits within the region
+                        //
+                        Vector2 refinedStippleLength = Vector2.one;
+                        Vector2 endPoint = startPos +  refinedStippleLength;
+                        for (int x = 0; x < 10; x++)
+                        {
+                            float norm = (float)x / 9.0f;
+                            refinedStippleLength = Vector2.Lerp(Vector2.one, stippleLength, norm);
+                            endPoint = startPos + refinedStippleLength;
+
+                            // If outside of the texture sapce return
+                            if (endPoint.x >= tex.width - 1 || endPoint.y >= tex.height - 1)
+                                break;
+                           
+                            float endRegionValue = region.regionMap[(int)endPoint.x, (int)endPoint.y];
+
+                            // If not inside value range break
+                            if (endRegionValue < valueMin || endRegionValue > valueMax)
+                            {
+                                break;
+                            }
+                        }
+
+                        Line newLine = new Line()
+                        {
+                            p0 = startPos,
+                            p1 = endPoint,
+                            newLine = true
+                        };
+                        region.fillLines.Add(newLine);
+                    }
+                }
+            }
+        }
+
+        #endregion
 
         // CREATE & WRITE VECTOR TO FILE
         //
@@ -577,84 +680,12 @@ namespace SVGGenerator
                 tracedRegions[i].Trace(this);
             }
 
+
             WriteString();
         }
 
 
-        [ContextMenu("Output")]
-        public void WriteString()
-        {
-            // CACHE PIXEL COLS
-            //
-            string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
-            List<Line> lineList = new List<Line>();
-            List<Contour> allContours = new List<Contour>();
-
-
-            string testSVGStringHeader = @"<svg width=""800"" height=""800""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>";
-                                        //<g> <path style = ""fill:none;"" d = """;
-
-            foreach (TracedRegion region in tracedRegions)
-            {
-                testSVGStringHeader += @"""<g> <path style = ""fill:none;"" d = """;
-
-                //region.Trace(this);
-
-                foreach(Contour c in region.minContours)
-                {
-                    for (int i = 0; i < c.lines.Count; i++)
-                    {
-                        if (i == 0 || c.lines[i].newLine)
-                            testSVGStringHeader += $"   M {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                        else
-                            testSVGStringHeader += $"   L {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                    }
-                }
-
-                foreach (Contour c in region.maxContours)
-                {
-                    for (int i = 0; i < c.lines.Count; i++)
-                    {
-                        if (i == 0 || c.lines[i].newLine)
-                            testSVGStringHeader += $"   M {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                        else
-                            testSVGStringHeader += $"   L {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
-                    }
-                }
-
-
-                // FILL LINES
-                //
-                for (int i = 0; i < region.fillLines.Count; i++)
-                {
-                    if (i == 0 || region.fillLines[i].newLine)
-                        testSVGStringHeader += $"   M {region.fillLines[i].p0.x} {region.fillLines[i].p0.y}  L {region.fillLines[i].p1.x} {region.fillLines[i].p1.y}";
-                    else
-                        testSVGStringHeader += $"   L {region.fillLines[i].p0.x} {region.fillLines[i].p0.y}  L {region.fillLines[i].p1.x} {region.fillLines[i].p1.y}";
-                }
-
-                testSVGStringHeader += @"""/> </g>";
-            }
-
-          
-
-            //for (int i = 0; i < lineList.Count; i++)
-            //{
-            //    if (i == 0 || lineList[i].newLine)
-            //        testSVGStringHeader += $"   M {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
-            //    else
-            //        testSVGStringHeader += $"   L {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
-            //}
-
-            testSVGStringHeader += @"</svg>";
-
-
-            // WRITE TO TEXT FILE
-            //
-            StreamWriter writer = new StreamWriter(path, false);
-            writer.WriteLine(testSVGStringHeader);
-            writer.Close();
-        }
+      
 
 
 
@@ -745,6 +776,38 @@ namespace SVGGenerator
                 }
             }
         }
+
+        [ContextMenu("Process contours")]
+        void ProcessRegionContours()
+        {
+            foreach(TracedRegion region in tracedRegions)
+            {
+                region.processedMinContours = ProcessContours(region.minContours, region.contourGap);
+                region.processedMaxContours = ProcessContours(region.maxContours, region.contourGap);
+            }
+        }
+
+        public List<Contour> ProcessContours(List<Contour> contours, int gap)
+        {
+            List<Contour> processedContours = new List<Contour>();
+
+            foreach (Contour c in contours)
+            {
+                Debug.Log("Line prev  " + c.lines.Count);
+                Contour newContour = new Contour();
+                for (int i = 0; i < c.lines.Count; i++)
+                {
+                    if (i % gap == 0)
+                        newContour.lines.Add(new Line() { p0 = c.lines[i].p0, p1 = c.lines[i].p1, newLine = true });
+                }
+
+                Debug.Log("newContour  " + newContour.lines.Count);
+                processedContours.Add(newContour);
+            }
+
+            return processedContours;
+        }
+
 
         [ContextMenu("Simplify")]
         void SimplifyRegions()
@@ -864,6 +927,78 @@ namespace SVGGenerator
         }
 
 
+        [ContextMenu("Output")]
+        public void WriteString()
+        {
+            // CACHE PIXEL COLS
+            //
+            string path = "Assets/_Project/SVG Writer/Resources/testSVG " + System.DateTime.Now.ToString("yyyy-MM-dd") + ".svg";
+            
+            string testSVGStringHeader = $@"<svg width=""{tex.width}"" height=""{tex.height}""    xmlns:xlink=""http://www.w3.org/1999/xlink"" style=""stroke:black; stroke-opacity:1; stroke-width:1;""  xmlns=""http://www.w3.org/2000/svg""> <defs id = ""genericDefs""/>";
+            //<g> <path style = ""fill:none;"" d = """;
+
+            foreach (TracedRegion region in tracedRegions)
+            {
+                testSVGStringHeader += @"""<g> <path style = ""fill:none;"" d = """;
+
+                //region.Trace(this);
+
+                foreach (Contour c in region.processedMinContours)
+                {
+                    for (int i = 0; i < c.lines.Count; i++)
+                    {
+                        if (i == 0 || c.lines[i].newLine)
+                            testSVGStringHeader += $"   M {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
+                        else
+                            testSVGStringHeader += $"   L {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
+                    }
+                }
+
+                foreach (Contour c in region.processedMaxContours)
+                {
+                    for (int i = 0; i < c.lines.Count; i++)
+                    {
+                        if (i == 0 || c.lines[i].newLine)
+                            testSVGStringHeader += $"   M {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
+                        else
+                            testSVGStringHeader += $"   L {c.lines[i].p0.x} {c.lines[i].p0.y}  L {c.lines[i].p1.x} {c.lines[i].p1.y}";
+                    }
+                }
+
+
+                // FILL LINES
+                //
+                for (int i = 0; i < region.fillLines.Count; i++)
+                {
+                    if (i == 0 || region.fillLines[i].newLine)
+                        testSVGStringHeader += $"   M {region.fillLines[i].p0.x} {region.fillLines[i].p0.y}  L {region.fillLines[i].p1.x} {region.fillLines[i].p1.y}";
+                    else
+                        testSVGStringHeader += $"   L {region.fillLines[i].p0.x} {region.fillLines[i].p0.y}  L {region.fillLines[i].p1.x} {region.fillLines[i].p1.y}";
+                }
+
+                testSVGStringHeader += @"""/> </g>";
+            }
+
+
+
+            //for (int i = 0; i < lineList.Count; i++)
+            //{
+            //    if (i == 0 || lineList[i].newLine)
+            //        testSVGStringHeader += $"   M {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
+            //    else
+            //        testSVGStringHeader += $"   L {lineList[i].p0.x} {lineList[i].p0.y}  L {lineList[i].p1.x} {lineList[i].p1.y}";
+            //}
+
+            testSVGStringHeader += @"</svg>";
+
+
+            // WRITE TO TEXT FILE
+            //
+            StreamWriter writer = new StreamWriter(path, false);
+            writer.WriteLine(testSVGStringHeader);
+            writer.Close();
+        }
+
         //
         // DEBUG
         //
@@ -901,7 +1036,7 @@ namespace SVGGenerator
 
                 if (region.contourMinVisibility)
                 {
-                    foreach (Contour c in region.minContours)
+                    foreach (Contour c in region.processedMinContours)
                     {
                         for (int i = 0; i < c.lines.Count; i++)
                         {
@@ -912,7 +1047,7 @@ namespace SVGGenerator
 
                 if (region.contourMaxVisibility)
                 {
-                    foreach (Contour c in region.maxContours)
+                    foreach (Contour c in region.processedMaxContours)
                     {
                         for (int i = 0; i < c.lines.Count; i++)
                         {
