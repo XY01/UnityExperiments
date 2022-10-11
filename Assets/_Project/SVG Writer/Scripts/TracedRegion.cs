@@ -29,10 +29,10 @@ namespace SVGGenerator
 
         [Header("FILL")]
         public FillType fillType = FillType.ScanLine;
-        [Range(0, 1)]
-        public float fillDensityLow = .3f;
-        [Range(0, 1)]
-        public float fillDensityHigh = .6f;
+        [Range(0, 100)]
+        public int pixelRadiusLow = 4;
+        [Range(0, 100)]
+        public int pixelRadiusHigh = 20;
 
 
         

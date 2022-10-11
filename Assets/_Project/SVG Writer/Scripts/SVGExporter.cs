@@ -9,10 +9,10 @@ using System.IO;
 // Show original image on the left same size as current - DONE
 // Designate value region - DONE
 // Add reagion by hue, value, saturation - DONE
-
-
 // Test distance from line calc  - DONE
-// Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines 
+// Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines - DONE
+// Angled scanlines
+
 // Set HSV select from region in shader in on validate
 // Stippling, dash line styles
 // Try draw a path along a line where contour lines are near parallell

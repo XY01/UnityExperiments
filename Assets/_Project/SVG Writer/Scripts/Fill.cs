@@ -23,7 +23,8 @@ namespace SVGGenerator
             switch (fillType)
             {
                 case FillType.ScanLine:
-                    ScanLineFill(svgExporter, region);
+                    AngledScanLineFill(svgExporter, region, Vector2.one.normalized);
+                    //ScanLineFill(svgExporter, region);
                     break;
                 case FillType.Stipple:
                     StippleFill(region, Vector2.one);
@@ -32,7 +33,7 @@ namespace SVGGenerator
                     StippleFill(region, new Vector2(20, 0));
                     break;
                 case FillType.GradientStipple:
-                    StippleFillGradient(svgExporter, region, Vector2.one, region.minRange, region.maxRange, 3);
+                    StippleFillGradient(svgExporter, region, Vector2.one, region.minRange, region.maxRange, 6);
                     break;
                 case FillType.None:
                     break;
@@ -44,13 +45,13 @@ namespace SVGGenerator
         {
             ResetFill();
 
-            int yIncrement = (int)Mathf.Lerp(svgExporter.tex.height * .1f, 1, Mathf.Clamp01(region.fillDensityLow));
+            int yIncrement = region.pixelRadiusLow;
             int yPixIndex;
             bool drawingLine = false;
             Line newLine = new Line();
-            int startY = Random.Range(0, yIncrement);
+            int startY = (int)region.bounds.y;
 
-            for (int y = startY; y < svgExporter.tex.height; y += yIncrement)
+            for (int y = startY; y < (int)region.bounds.w; y += yIncrement)
             {
                 yPixIndex = y;
 
@@ -110,21 +111,168 @@ namespace SVGGenerator
             }
         }
 
+        public void AngledScanLineFill(SVGExporter svgExporter, TracedRegion region, Vector2 dir)
+        {
+            ResetFill();
+
+            int yPixIndex;
+            bool drawingLine = false;
+            Line newLine = new Line();
+
+            int startX = (int)region.bounds.x;
+            int startY = (int)region.bounds.y;
+            int maxSampleCount = 1000;
+
+            float xSample = startX;
+            float ySample = startY;
+            float xIncrement = dir.x * region.pixelRadiusLow;
+            float yIncrement = dir.y * region.pixelRadiusLow;
+
+            for (int x = startX; x < (int)region.bounds.z; x += region.pixelRadiusLow)
+            {
+                for (int s = 0; s < maxSampleCount; s++)
+                {
+                    xSample = x + xIncrement * s;
+                    ySample = startY + yIncrement * s;
+
+                    //Debug.Log((int)xSample + "  " + (int)ySample);
+
+                    // BREAK IF OUT OF BOUNDS
+
+                    if (xSample < region.bounds.x || xSample > region.bounds.z ||
+                        ySample < region.bounds.y || ySample > region.bounds.w)
+                        break;
+
+
+                    // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
+                    //
+                    if (drawingLine && x == svgExporter.tex.width - 1)// || lineDist > maxLineLength)
+                    {
+                        EndLine((int)xSample, (int)ySample);
+                    }
+
+                    //
+                    // IF DARK ENOUGH, START DRAWING LINE
+                    //
+                    float valueSample = svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
+
+                  
+
+                    //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
+
+                    if (!drawingLine)
+                    {
+                        if (valueSample > region.minRange && valueSample < region.maxRange)
+                        {
+                            if (fillLines == null)
+                                fillLines = new List<Line>();
+
+                            // START NEW LINE
+                            //
+                            drawingLine = true;
+                            newLine = new Line() { p0 = new Vector2((int)xSample, (int)ySample), newLine = true };
+                        }
+                    }
+                    //
+                    // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
+                    //
+                    else
+                    {
+                        if (valueSample < region.minRange || valueSample > region.maxRange || x == svgExporter.tex.width - 1)
+                        {
+                            EndLine((int)xSample - 1, (int)ySample);
+                        }
+                    }
+
+                }
+            }
+
+            for (int y = startY; y < (int)region.bounds.w; y += region.pixelRadiusLow)
+            {
+                for (int s = 0; s < maxSampleCount; s++)
+                {
+                    xSample = startX + xIncrement * s;
+                    ySample = y + yIncrement * s;
+
+                    //Debug.Log((int)xSample + "  " + (int)ySample);
+
+                    // BREAK IF OUT OF BOUNDS
+
+                    if (xSample < region.bounds.x || xSample > region.bounds.z ||
+                        ySample < region.bounds.y || ySample > region.bounds.w)
+                        break;
+
+
+                    // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
+                    //
+                    if (drawingLine && y == svgExporter.tex.height - 1)// || lineDist > maxLineLength)
+                    {
+                        EndLine((int)xSample, (int)ySample);
+                    }
+
+                    //
+                    // IF DARK ENOUGH, START DRAWING LINE
+                    //
+                    float valueSample = svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
+
+
+
+                    //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
+
+                    if (!drawingLine)
+                    {
+                        if (valueSample > region.minRange && valueSample < region.maxRange)
+                        {
+                            if (fillLines == null)
+                                fillLines = new List<Line>();
+
+                            // START NEW LINE
+                            //
+                            drawingLine = true;
+                            newLine = new Line() { p0 = new Vector2((int)xSample, (int)ySample), newLine = true };
+                        }
+                    }
+                    //
+                    // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
+                    //
+                    else
+                    {
+                        if (valueSample < region.minRange || valueSample > region.maxRange || y == svgExporter.tex.height - 1)
+                        {
+                            EndLine((int)xSample - 1, (int)ySample);
+                        }
+                    }
+
+                }
+            }
+
+            void EndLine(int x, int y)
+            {
+                // END LINE
+                //
+                drawingLine = false;
+
+                if (new Vector2(x, y) != newLine.p0)
+                {
+                    newLine.p1 = new Vector2(x, y);
+                    fillLines.Add(newLine);
+                }
+            }
+        }
+
         public void StippleFill(TracedRegion region, Vector2 stippleLength)
         {
             ResetFill();
 
-            float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
-            int sampleCount = (int)(boundArea * region.fillDensityLow);
             Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
 
             List<Vector2> poisonDiscSampledPoints = PoissonDiscSampling.GeneratePoints
             (
-                radius: Mathf.Lerp(6, 30, 1f - region.fillDensityLow),
+                radius: region.pixelRadiusLow,
                 sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
             );
 
-            Debug.Log("Stipple fill count: " + sampleCount + "     poisonDiscSampledPoints: " + poisonDiscSampledPoints.Count);
+            Debug.Log("poisonDiscSampledPoints: " + poisonDiscSampledPoints.Count);
 
             for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
             {
@@ -147,23 +295,17 @@ namespace SVGGenerator
         {
             ResetFill();
 
-            float boundArea = (region.bounds.z - region.bounds.x) * (region.bounds.w - region.bounds.y);
-            int sampleCount = (int)(boundArea * region.fillDensityLow);
             Vector2 boundsOffset = new Vector2(region.bounds.x, region.bounds.y);
-
-
-            //
+                        
             // CREATE LIST OF SAMPLES FOR EACH LEVEL OF GRADIENT
             //
             List<List<Vector2>> poissonSampleLevels = new List<List<Vector2>>();
             for (int i = 0; i < gradientLevels; i++)
             {
                 float norm = i / (float)(gradientLevels - 1);
-                float lowDensity = Mathf.Lerp(2, 90, region.fillDensityLow);
-                float highDensity = Mathf.Lerp(2, 90, region.fillDensityHigh);
                 List<Vector2> newSample = PoissonDiscSampling.GeneratePoints
                 (
-                    radius: Mathf.Lerp(lowDensity, highDensity, norm),
+                    radius: Mathf.Lerp(region.pixelRadiusLow, region.pixelRadiusHigh, norm),
                     sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
                 );
                 poissonSampleLevels.Add(newSample);
