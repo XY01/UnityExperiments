@@ -23,6 +23,12 @@ namespace SVGGenerator
         public List<Line> processedLines = new List<Line>();
         public string endCondition;
 
+        public void ResetProcessedLines()
+        {
+            foreach (Line l in lines)
+                processedLines.Add(new Line() { p0 = l.p0, p1 = l.p1, newLine = l.newLine });
+        }
+
         public void ProcessContours(int gap, bool debug = false)
         {
             if (debug) Debug.Log($"ProcessContours Before: {lines.Count}  {processedLines.Count}");
@@ -41,6 +47,9 @@ namespace SVGGenerator
         // REF: https://answers.unity.com/questions/1368390/how-to-calculate-curvature-of-a-path.html
         public void Simplify(int minSampleOffset, int curvatureSampleCount, float curveCutoff)
         {
+            if (lines.Count == 0)
+                return;
+
             processedLines.Clear();
 
             int currentIndex = 0;

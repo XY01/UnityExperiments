@@ -346,8 +346,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 247535511}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -10.52, y: -4.65, z: 0}
-  m_LocalScale: {x: 5.12, y: 5.12, z: 0}
+  m_LocalPosition: {x: -13.08, y: -2.0900002, z: 0}
+  m_LocalScale: {x: 10.24, y: 10.24, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1002879074}
@@ -753,8 +753,8 @@ Transform:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 811604891}
   m_LocalRotation: {x: -0, y: -0, z: -0, w: 1}
-  m_LocalPosition: {x: -5.4, y: -4.65, z: 0}
-  m_LocalScale: {x: 5.12, y: 5.12, z: 0}
+  m_LocalPosition: {x: -2.8400002, y: -2.0900002, z: 0}
+  m_LocalScale: {x: 10.24, y: 10.24, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children: []
   m_Father: {fileID: 1002879074}
@@ -902,7 +902,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 550fa89749927c44984c63dfc129769b, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  tex: {fileID: 2800000, guid: a1df300096a32a940a1be3d2a5cf8c3d, type: 3}
+  tex: {fileID: 2800000, guid: 267480dafaa327a4f866b379dd1aac91, type: 3}
   imageQuad: {fileID: 811604892}
   imageQuadMat: {fileID: 2100000, guid: d087984ccba14b843a7b9f3a0038ae38, type: 2}
   imageQuad_Original: {fileID: 247535512}
@@ -914,80 +914,47 @@ MonoBehaviour:
   - debugDisable: 0
     col: {r: 0.74144775, g: 0.8679245, b: 0.28248486, a: 0.8509804}
     imageValueSelectionType: 1
-    minRange: 0.142
-    maxRange: 0.319
-    prevMinRange: 0.142
-    prevMaxRange: 0.319
-    contourType: 3
-    contourGap: 0
-    fillType: 3
+    minRange: 0.067
+    maxRange: 0.327
+    prevMinRange: 0.067
+    prevMaxRange: 0.327
+    contourType: 2
+    contourGap: 20
+    samplingPixelStep: 3
+    fillType: 0
     fillDensityLow: 0.05
     fillDensityHigh: 0.1
-    minSampleOffset: 2
-    curvatureSampleCount: 4
+    minSampleOffset: 4
+    curvatureSampleCount: 10
     curveCutoff: 0.5
     contourMinVisibility: 1
     contourMaxVisibility: 1
     fillLinesVisibility: 1
     minContours: []
     maxContours:
-    - startPix: {x: 48, y: 252}
-      endPix: {x: 48, y: 252}
+    - startPix: {x: 63, y: 480}
+      endPix: {x: 63, y: 480}
       endCondition: 
-    - startPix: {x: 87, y: 309}
-      endPix: {x: 87, y: 309}
+    - startPix: {x: 324, y: 936}
+      endPix: {x: 324, y: 936}
       endCondition: 
-    - startPix: {x: 138, y: 236}
-      endPix: {x: 0, y: 0}
+    - startPix: {x: 945, y: 432}
+      endPix: {x: 945, y: 432}
       endCondition: 
-    - startPix: {x: 142, y: 69}
-      endPix: {x: 142, y: 69}
+    - startPix: {x: 948, y: 450}
+      endPix: {x: 948, y: 450}
       endCondition: 
-    - startPix: {x: 144, y: 238}
-      endPix: {x: 144, y: 238}
-      endCondition: 
-    - startPix: {x: 185, y: 183}
-      endPix: {x: 185, y: 183}
-      endCondition: 
-    - startPix: {x: 189, y: 188}
-      endPix: {x: 189, y: 188}
-      endCondition: 
-    - startPix: {x: 218, y: 166}
-      endPix: {x: 218, y: 166}
-      endCondition: 
-    - startPix: {x: 219, y: 154}
-      endPix: {x: 219, y: 154}
-      endCondition: 
-    - startPix: {x: 243, y: 140}
-      endPix: {x: 243, y: 140}
-      endCondition: 
-    - startPix: {x: 263, y: 138}
-      endPix: {x: 263, y: 138}
-      endCondition: 
-    - startPix: {x: 269, y: 130}
-      endPix: {x: 269, y: 130}
-      endCondition: 
-    - startPix: {x: 288, y: 115}
-      endPix: {x: 288, y: 115}
-      endCondition: 
-    - startPix: {x: 322, y: 100}
-      endPix: {x: 322, y: 100}
-      endCondition: 
-    - startPix: {x: 323, y: 77}
-      endPix: {x: 323, y: 77}
-      endCondition: 
-    - startPix: {x: 340, y: 103}
-      endPix: {x: 340, y: 103}
-      endCondition: 
-    areaInPixels: 36004
-    bounds: {x: 48, y: 33, z: 342, w: 354}
-  debugPos: {x: 511, y: 511, z: 0}
+    areaInPixels: 232514
+    bounds: {x: 63, y: 51, z: 951, w: 974}
+  debugPos: {x: 340, y: 340, z: 0}
   debugPosScale: 0.003
   debugPrint: 0
   gizmoLineAlpha: 0.5
   debugDrawContours: 1
   debugDrawAllLines: 1
   debugContourOffset: 0.01
+  gizmoGridSize: 100
+  debugGridCol: {r: 0.2, g: 0.2, b: 0.2, a: 0.7882353}
 --- !u!4 &1002879074
 Transform:
   m_ObjectHideFlags: 0

@@ -24,6 +24,7 @@ namespace SVGGenerator
         [Header("CONTOUR")]
         public ContourType contourType = ContourType.Min;
         public int contourGap = 0;
+        public int samplingPixelStep = 1;
 
 
         [Header("FILL")]
@@ -38,7 +39,7 @@ namespace SVGGenerator
 
 
         [Header("SIMPLIFY")]
-        public int minSampleOffset = 3;
+        public int minSampleOffset = 4;
         public int curvatureSampleCount = 10;
         [Tooltip("Larger > Smaller == More > Less detail")]
         public float curveCutoff = .5f;      
@@ -162,12 +163,13 @@ namespace SVGGenerator
                 new Vector2(-1,1)
             };
 
-
-
             bool isBorderPixel = svgExporter.GetValueAtPixel(imageValueSelectionType, 0, 0) < valueCutoff;
-            for (int x = 0; x < svgExporter.tex.width; x++)
+            int xSamples = Mathf.FloorToInt(svgExporter.tex.width / samplingPixelStep);
+            int ySamples = Mathf.FloorToInt(svgExporter.tex.height / samplingPixelStep);
+
+            for (int x = 0; x < xSamples; x++)
             {
-                for (int y = 0; y < svgExporter.tex.height; y++)
+                for (int y = 0; y < ySamples; y++)
                 {
                     if (contourCount >= svgExporter.maxContours)
                     {
@@ -175,29 +177,32 @@ namespace SVGGenerator
                         return;
                     }
 
+                    int xSample = x * samplingPixelStep;
+                    int ySample = y * samplingPixelStep;
                     svgExporter.debugPos = new Vector2(x, y);
 
                     bool prevIsBorderPix = isBorderPixel;
-                    isBorderPixel = svgExporter.GetValueAtPixel(imageValueSelectionType, x, y) < valueCutoff; ;
-
-                    //
+                    float valueAtPixel = svgExporter.GetValueAtPixel(imageValueSelectionType, xSample, ySample);
+                    isBorderPixel = valueAtPixel < valueCutoff; ;
+                                        
                     // FIND PIXEL THAT CROSSES A BORDER
                     //
-                    if (isBorderPixel && !prevIsBorderPix && svgExporter.GetValueAtPixel(imageValueSelectionType, x, y) < valueCutoff &&
-                        contourPixels[x, y] == 0)
+                    if (isBorderPixel && !prevIsBorderPix &&
+                        valueAtPixel < valueCutoff &&
+                        contourPixels[xSample, ySample] == 0)
                     {
                         debugContourSampleCount = 0;
 
                         // TRACE CONTOUR
                         //
-                        Vector2 startPix = new Vector2(x, y);
-                        Vector2 currentContourPix = new Vector2(x, y);
+                        Vector2 startPix = new Vector2(xSample, ySample);
+                        Vector2 currentContourPix = new Vector2(xSample, ySample);
 
                         Contour newContour = new Contour() { startPix = startPix };
 
                         bool clockwise = svgExporter.startClockwize;
 
-                        contourPixels[x, y]++;
+                        contourPixels[xSample, ySample]++;
                         Line newLine = new Line() { p0 = startPix, newLine = true };
 
                         // DEBUG
@@ -224,8 +229,8 @@ namespace SVGGenerator
                             //
                             neighborIndex %= neighborsClockwize.Length;
                             int searchX, searchY;
-                            searchX = clockwise ? (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x : (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x;
-                            searchY = clockwise ? (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y : (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y;
+                            searchX = clockwise ? (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x * samplingPixelStep : (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x * samplingPixelStep;
+                            searchY = clockwise ? (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y * samplingPixelStep : (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y * samplingPixelStep;
 
 
 
@@ -320,13 +325,16 @@ namespace SVGGenerator
                         }
 
                         // ADD CONTOUR TO LIST
-                        //
-                        newContour.processedLines = newContour.lines;
-                        contourList.Add(newContour);
-                        if (svgExporter.debugPrint)
-                            Debug.Log($"Added new contour. Line count {newContour.processedLines.Count}  {newContour.lines.Count}");
+                        //                       
+                        if (newContour.lines.Count > 0)
+                        {
+                            newContour.ResetProcessedLines();                            
+                            contourList.Add(newContour);
+                            contourCount++;
+                        }
 
-                        contourCount++;
+                        if (svgExporter.debugPrint)
+                            Debug.Log($"Added new contour. Line count: {newContour.lines.Count}");
                     }
                 }
             }

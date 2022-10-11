@@ -12,7 +12,7 @@ using System.IO;
 
 
 // Test distance from line calc  - DONE
-// Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines
+// Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines 
 // Set HSV select from region in shader in on validate
 // Stippling, dash line styles
 // Try draw a path along a line where contour lines are near parallell
