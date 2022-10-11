@@ -319,24 +319,13 @@ namespace SVGGenerator
                                 Debug.Log("ENDING CONTOUR:  NO NEIGHBORS FOUND");
                         }
 
-                        // IF CONTOUR DIDNT MAKE IT BACK TO START, TRY COUNTER CLOCKWIZE FROM START
-                        //
-                        //if(clockwise && !newContour.closedContour)
-                        //{
-                        //    clockwise = false;
-                        //    prevContourPix = newContour.startPix;
-                        //    currentContourPix = newContour.startPix;
-                        //    neighborIndex = 0;
-                        //}
-                        //else
-
-
-                        newContour.processedLines = newContour.lines;
-                        contourList.Add(newContour);
-
                         // ADD CONTOUR TO LIST
                         //
-                        if (svgExporter.debugPrint) Debug.Log("ADDING NEW CONTOUR");
+                        newContour.processedLines = newContour.lines;
+                        contourList.Add(newContour);
+                        if (svgExporter.debugPrint)
+                            Debug.Log($"Added new contour. Line count {newContour.processedLines.Count}  {newContour.lines.Count}");
+
                         contourCount++;
                     }
                 }
@@ -347,12 +336,17 @@ namespace SVGGenerator
 
         public void ProcessContours()
         {
-            if (contourGap == 0)
+            if (contourGap <= 0)
                 return;
 
             foreach(Contour c in minContours)
             {
-                c.ProcessContours(contourGap);
+                c.ProcessContours(contourGap, true);
+            }
+
+            foreach (Contour c in maxContours)
+            {
+                c.ProcessContours(contourGap, true);
             }
         }
 

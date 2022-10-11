@@ -11,7 +11,7 @@ using System.IO;
 // Add reagion by hue, value, saturation - DONE
 
 
-// Test distance from line calc
+// Test distance from line calc  - DONE
 // Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines
 // Set HSV select from region in shader in on validate
 // Stippling, dash line styles
@@ -74,6 +74,8 @@ namespace SVGGenerator
         public bool debugDrawContours = true;
         public bool debugDrawAllLines = true;
         public float debugContourOffset = .01f;
+        public int gizmoGridSize = 100;
+        public Color debugGridCol = Color.white * .2f;
 
         // HELPER PROPS
         private Vector2 pixelMidpointWorldSpace => new Vector2(tex.width * .5f, tex.height * .5f) * pixelToWorldScalar;
@@ -265,6 +267,25 @@ namespace SVGGenerator
                     region.fill.DrawGizmos(pixelToWorldScalar);                   
                 }
             }
+
+            // DRAW PIXEL GUIDES
+            //
+            Gizmos.color = debugGridCol;
+            int xCount = Mathf.CeilToInt(tex.width / (float)gizmoGridSize);
+            int yCount = Mathf.CeilToInt(tex.height / (float)gizmoGridSize);
+            for (int x = 0; x < xCount; x++)
+            {
+                float xNorm = x / (xCount-1.0f);
+                float xPos = xNorm * tex.width;
+                Gizmos.DrawLine(new Vector3(xPos, 0, 0) * pixelToWorldScalar, new Vector3(xPos, tex.height, 0) * pixelToWorldScalar);
+            }
+
+            for (int y = 0; y < yCount; y++)
+            {
+                float yNorm = y / (yCount - 1.0f);
+                float yPos = yNorm * tex.height;
+                Gizmos.DrawLine(new Vector3(0, yPos, 0) * pixelToWorldScalar, new Vector3(tex.width, yPos, 0) * pixelToWorldScalar);
+            }            
         }
 
 

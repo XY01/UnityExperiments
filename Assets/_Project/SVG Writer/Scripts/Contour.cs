@@ -23,16 +23,19 @@ namespace SVGGenerator
         public List<Line> processedLines = new List<Line>();
         public string endCondition;
 
-        //List<Vector3> curvatureAtPoint = new List<Vector3>();
-
-        public void ProcessContours(int gap)
+        public void ProcessContours(int gap, bool debug = false)
         {
-            processedLines.Clear();
+            if (debug) Debug.Log($"ProcessContours Before: {lines.Count}  {processedLines.Count}");
+
+            List<Line> newProcessedLines = new List<Line>();
             for (int i = 0; i < lines.Count; i++)
             {
                 if (i % gap == 0)
-                    processedLines.Add(new Line() { p0 = lines[i].p0, p1 = lines[i].p1, newLine = true });
+                    newProcessedLines.Add(new Line() { p0 = lines[i].p0, p1 = lines[i].p1, newLine = true });
             }
+
+            processedLines = newProcessedLines;
+            if (debug) Debug.Log($"ProcessContours Before/After: {lines.Count}  {processedLines.Count}");
         }
 
         // REF: https://answers.unity.com/questions/1368390/how-to-calculate-curvature-of-a-path.html

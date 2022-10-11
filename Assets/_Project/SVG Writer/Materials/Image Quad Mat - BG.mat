@@ -26,7 +26,7 @@ Material:
     serializedVersion: 3
     m_TexEnvs:
     - _BaseMap:
-        m_Texture: {fileID: 2800000, guid: df31d04b5834d2540b79fe36f092a93c, type: 3}
+        m_Texture: {fileID: 2800000, guid: a1df300096a32a940a1be3d2a5cf8c3d, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _BumpMap:
@@ -101,9 +101,9 @@ Material:
     - _Glossiness: 0
     - _GlossyReflections: 0
     - _HSVSELECT: 2
-    - _MaxRange: 0.833
+    - _MaxRange: 0.319
     - _Metallic: 0
-    - _MinRange: 0.205
+    - _MinRange: 0.142
     - _OcclusionStrength: 1
     - _Opacity: 0.104
     - _Overlay: 0.826
@@ -124,7 +124,7 @@ Material:
     - _BaseColor: {r: 1, g: 1, b: 1, a: 0.12941177}
     - _Color: {r: 1, g: 1, b: 1, a: 0.12941177}
     - _EmissionColor: {r: 0, g: 0, b: 0, a: 1}
-    - _RegionCol: {r: 0.06620952, g: 0.054957304, b: 0.8962264, a: 1}
+    - _RegionCol: {r: 0.74144775, g: 0.8679245, b: 0.28248486, a: 0.8509804}
     - _SpecColor: {r: 0.19999996, g: 0.19999996, b: 0.19999996, a: 1}
   m_BuildTextureStacks: []
 --- !u!114 &7792180296423288790

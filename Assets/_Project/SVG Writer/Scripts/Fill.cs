@@ -123,6 +123,7 @@ namespace SVGGenerator
                 radius: Mathf.Lerp(6, 30, 1f - region.fillDensityLow),
                 sampleRegionSize: new Vector2(region.bounds.z - region.bounds.x, region.bounds.w - region.bounds.y)
             );
+
             Debug.Log("Stipple fill count: " + sampleCount + "     poisonDiscSampledPoints: " + poisonDiscSampledPoints.Count);
 
             for (int i = 0; i < poisonDiscSampledPoints.Count; i++)
