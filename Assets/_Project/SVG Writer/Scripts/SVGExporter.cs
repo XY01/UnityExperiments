@@ -11,7 +11,11 @@ using System.IO;
 // Add reagion by hue, value, saturation - DONE
 // Test distance from line calc  - DONE
 // Try sampling filtered pixels and using UV spaced stepping to get less pixelated lines - DONE
-// Angled scanlines
+// Angled scanlines - DONE
+// Scan lines - DONE
+// Generate textures for regions
+// Floodfill regions
+// Contour each region as seperate line
 
 // Set HSV select from region in shader in on validate
 // Stippling, dash line styles
@@ -191,7 +195,7 @@ namespace SVGGenerator
             writer.Close();
         }
 
-        public float GetValueAtPixel(ImageValueSelectionType selectionType, int x, int y)
+        public float GetValueAtPixel(ImageValueSelectionType selectionType, int x, int y, int mip = 0)
         {
             float h, s, v;
 
@@ -203,7 +207,7 @@ namespace SVGGenerator
 
             // BILNEAR SAMPLING
             //
-            Color col = tex.GetPixelBilinear((float)(x / (float)tex.width), (float)(y / (float)tex.height));
+            Color col = tex.GetPixelBilinear((float)(x / (float)tex.width), (float)(y / (float)tex.height), mip);
             Color.RGBToHSV(col, out h, out s, out v);
 
             switch (selectionType)

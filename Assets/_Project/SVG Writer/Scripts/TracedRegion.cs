@@ -59,6 +59,8 @@ namespace SVGGenerator
 
         [HideInInspector]
         public float[,] regionMap;
+        public float[,] regionTypeMap;
+        public Texture2D regionMapTex;
         public float areaInPixels;
         public Vector4 bounds;
 
@@ -96,7 +98,85 @@ namespace SVGGenerator
 
             bounds = new Vector4(xMin, yMin, xMax, yMax);
             areaInPixels = count;
+
+            //floodFillCount = 0;
+            //floodFillUtil(regionMap, 10, 10, 0, 1);
+
+            regionTypeMap = new float[regionMap.GetLength(0),regionMap.GetLength(1)];
+            regionMapTex = new Texture2D
+            (
+                regionMap.GetLength(0),
+                regionMap.GetLength(1),
+                TextureFormat.ARGB32,
+                true
+            );
+
+            for (int x = 0; x < regionMap.GetLength(0); x++)
+            {
+                for (int y = 0; y < regionMap.GetLength(1); y++)
+                {
+                    if(regionMap[x,y] == 0)
+                    {
+                        regionTypeMap[x, y] = 0;
+                        regionMapTex.SetPixel(x, y, Color.black);
+                    }
+                    // IF BORDER
+                    else if(x > 0 && x < regionMap.GetLength(0) && y > 0 && y < regionMap.GetLength(1))
+                    {
+                        if
+                        (
+                            regionMap[x-1, y] == 0 ||
+                            regionMap[x + 1, y] == 0 ||
+                            regionMap[x, y - 1] == 0 ||
+                            regionMap[x, y + 1] == 0
+                        )
+                        {
+                            regionTypeMap[x, y] = 2;
+                            regionMapTex.SetPixel(x, y, Color.blue);
+                        }
+                        else
+                        {
+                            regionTypeMap[x, y] = 1;
+                            regionMapTex.SetPixel(x, y, Color.red);
+                        }
+                    }
+                    else
+                    {
+                        regionTypeMap[x, y] = 1;
+                        regionMapTex.SetPixel(x, y, Color.red);
+                    }
+                }
+            }
+
+            regionMapTex.Apply();
         }
+
+        //int maxFloodFill = 10000;
+        //int floodFillCount = 0;
+        //void floodFillUtil(float[,] screen,
+        //                    int x, int y,
+        //                    float prevVal, float newVal)
+        //{
+        //    // Base cases
+        //    if (x < 0 || x >= screen.GetLength(0) ||
+        //        y < 0 || y >= screen.GetLength(0))
+        //        return;
+        //    if (screen[x, y] != prevVal)
+        //        return;
+
+        //    // Replace the color at (x, y)
+        //    screen[x, y] = newVal;
+        //    floodFillCount++;
+
+        //    if (floodFillCount < maxFloodFill)
+        //    {
+        //        // Recur for north, east, south and west
+        //        floodFillUtil(screen, x + 1, y, prevVal, newVal);
+        //        floodFillUtil(screen, x - 1, y, prevVal, newVal);
+        //        floodFillUtil(screen, x, y + 1, prevVal, newVal);
+        //        floodFillUtil(screen, x, y - 1, prevVal, newVal);
+        //    }
+        //}
 
         public void Trace(SVGExporter svgExporter)
         {

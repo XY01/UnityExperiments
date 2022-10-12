@@ -23,7 +23,7 @@ namespace SVGGenerator
             switch (fillType)
             {
                 case FillType.ScanLine:
-                    AngledScanLineFill(svgExporter, region, Vector2.one.normalized);
+                    AngledScanLineFill(region, Vector2.one.normalized);
                     //ScanLineFill(svgExporter, region);
                     break;
                 case FillType.Stipple:
@@ -111,138 +111,120 @@ namespace SVGGenerator
             }
         }
 
-        public void AngledScanLineFill(SVGExporter svgExporter, TracedRegion region, Vector2 dir)
+        public void AngledScanLineFill(TracedRegion region, Vector2 dir)
         {
             ResetFill();
 
-            int yPixIndex;
             bool drawingLine = false;
             Line newLine = new Line();
 
-            int startX = (int)region.bounds.x;
-            int startY = (int)region.bounds.y;
             int maxSampleCount = 1000;
 
-            float xSample = startX;
-            float ySample = startY;
+            float xSample = 0;
+            float ySample = 0;
             float xIncrement = dir.x * region.pixelRadiusLow;
             float yIncrement = dir.y * region.pixelRadiusLow;
 
-            for (int x = startX; x < (int)region.bounds.z; x += region.pixelRadiusLow)
+            Debug.Log((int)region.regionTypeMap.GetLength(0) + "  " + (int)region.regionTypeMap.GetLength(1));
+
+            for (int x = 0; x < (int)region.regionTypeMap.GetLength(0); x += region.pixelRadiusLow)
             {
                 for (int s = 0; s < maxSampleCount; s++)
                 {
                     xSample = x + xIncrement * s;
-                    ySample = startY + yIncrement * s;
+                    ySample = yIncrement * s;
 
-                    //Debug.Log((int)xSample + "  " + (int)ySample);
-
-                    // BREAK IF OUT OF BOUNDS
-
-                    if (xSample < region.bounds.x || xSample > region.bounds.z ||
-                        ySample < region.bounds.y || ySample > region.bounds.w)
+                    if (xSample >= (int)region.regionTypeMap.GetLength(0) ||
+                        ySample >= (int)region.regionTypeMap.GetLength(1))
                         break;
 
-
-                    // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
-                    //
-                    if (drawingLine && x == svgExporter.tex.width - 1)// || lineDist > maxLineLength)
-                    {
-                        EndLine((int)xSample, (int)ySample);
-                    }
-
-                    //
-                    // IF DARK ENOUGH, START DRAWING LINE
-                    //
-                    float valueSample = svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
-
-                  
-
-                    //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
-
-                    if (!drawingLine)
-                    {
-                        if (valueSample > region.minRange && valueSample < region.maxRange)
-                        {
-                            if (fillLines == null)
-                                fillLines = new List<Line>();
-
-                            // START NEW LINE
-                            //
-                            drawingLine = true;
-                            newLine = new Line() { p0 = new Vector2((int)xSample, (int)ySample), newLine = true };
-                        }
-                    }
-                    //
-                    // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
-                    //
-                    else
-                    {
-                        if (valueSample < region.minRange || valueSample > region.maxRange || x == svgExporter.tex.width - 1)
-                        {
-                            EndLine((int)xSample - 1, (int)ySample);
-                        }
-                    }
-
+                    UpdateLineDrawing(xSample, ySample);
                 }
             }
 
-            for (int y = startY; y < (int)region.bounds.w; y += region.pixelRadiusLow)
+            for (int y = 0; y < (int)region.regionTypeMap.GetLength(1); y += region.pixelRadiusLow)
             {
                 for (int s = 0; s < maxSampleCount; s++)
                 {
-                    xSample = startX + xIncrement * s;
+                    xSample = xIncrement * s;
                     ySample = y + yIncrement * s;
 
-                    //Debug.Log((int)xSample + "  " + (int)ySample);
-
-                    // BREAK IF OUT OF BOUNDS
-
-                    if (xSample < region.bounds.x || xSample > region.bounds.z ||
-                        ySample < region.bounds.y || ySample > region.bounds.w)
+                    if (xSample > region.bounds.z ||
+                        ySample > region.bounds.w)
                         break;
 
+                    UpdateLineDrawing(xSample, ySample);
+                }
+            }
 
-                    // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
-                    //
-                    if (drawingLine && y == svgExporter.tex.height - 1)// || lineDist > maxLineLength)
+            void UpdateLineDrawing(float xSample, float ySample)
+            {
+                // IF DRAWING LINE AND GET TO EDGE OF TEXTURE, END LINE
+                //
+                if (drawingLine && ySample >= region.regionTypeMap.GetLength(1)-1)// || lineDist > maxLineLength)
+                {
+                    EndLine((int)xSample, (int)ySample);
+                }
+
+
+                // IF IS IN REGION, START DRAWING LINE
+                //
+                float valueSample = region.regionTypeMap[(int)xSample, (int)ySample];//  svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
+                if (!drawingLine)
+                {
+                    if (valueSample == 1)
                     {
-                        EndLine((int)xSample, (int)ySample);
-                    }
+                        if (fillLines == null)
+                            fillLines = new List<Line>();
 
-                    //
-                    // IF DARK ENOUGH, START DRAWING LINE
-                    //
-                    float valueSample = svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
-
-
-
-                    //print($"{x}  {yPixIndex}    valueSample {valueSample}     valueRange {valueRange}      drawingLine    {drawingLine}");
-
-                    if (!drawingLine)
-                    {
-                        if (valueSample > region.minRange && valueSample < region.maxRange)
+                        // LOOK BACKWARDS ALONG DIRECTION TO FIND BORDER PIXEL
+                        //
+                        for (int i = 0; i < region.pixelRadiusLow * 2; i++)
                         {
-                            if (fillLines == null)
-                                fillLines = new List<Line>();
-
-                            // START NEW LINE
-                            //
-                            drawingLine = true;
-                            newLine = new Line() { p0 = new Vector2((int)xSample, (int)ySample), newLine = true };
+                            xSample -= dir.x;
+                            ySample -= dir.y;
+                            float newValueSample = region.regionTypeMap[(int)xSample, (int)ySample];// svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
+                            if (newValueSample == 0)
+                            {
+                                xSample += dir.x;
+                                ySample += dir.y;
+                                break;
+                            }
                         }
+
+                        // START NEW LINE
+                        //
+                        drawingLine = true;
+                        newLine = new Line() { p0 = new Vector2((int)xSample,(int)ySample), newLine = true };
                     }
-                    //
-                    // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
-                    //
-                    else
+                }
+                // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
+                //
+                else
+                {
+                    if (valueSample != 1)
                     {
-                        if (valueSample < region.minRange || valueSample > region.maxRange || y == svgExporter.tex.height - 1)
+                        // LOOK BACKWARDS ALONG DIRECTION TO FIND BORDER PIXEL
+                        //
+                        for (int i = 0; i < region.pixelRadiusLow * 2; i++)
                         {
-                            EndLine((int)xSample - 1, (int)ySample);
-                        }
-                    }
+                            xSample -= dir.x;
+                            ySample -= dir.y;
 
+                            if (xSample <=0 || ySample <= 0)
+                                break;
+
+                            float newValueSample = region.regionTypeMap[(int)xSample, (int)ySample]; // svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
+                            if (newValueSample == 1)
+                            {
+                                //xSample += dir.x;
+                                //ySample += dir.y;
+                                break;
+                            }
+                        }
+
+                        EndLine((int)xSample,(int)ySample);
+                    }
                 }
             }
 
