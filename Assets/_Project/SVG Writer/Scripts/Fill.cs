@@ -13,6 +13,13 @@ namespace SVGGenerator
         StippleDash,
     }
 
+    public enum PixelType
+    {
+        NotInRegion,
+        Border,
+        InRegion
+    }
+
     [System.Serializable]
     public class Fill
     {
@@ -111,7 +118,7 @@ namespace SVGGenerator
             }
         }
 
-        public void AngledScanLineFill(TracedRegion region, Vector2 dir)
+        public void AngledScanLineFill(TracedRegion region, Vector2 dirNorm)
         {
             ResetFill();
 
@@ -120,10 +127,10 @@ namespace SVGGenerator
 
             int maxSampleCount = 1000;
 
-            float xSample = 0;
-            float ySample = 0;
-            float xIncrement = dir.x * region.pixelRadiusLow;
-            float yIncrement = dir.y * region.pixelRadiusLow;
+            float xSample;
+            float ySample;
+            float xIncrement = dirNorm.x * region.pixelRadiusLow;
+            float yIncrement = dirNorm.y * region.pixelRadiusLow;
 
             Debug.Log((int)region.regionTypeMap.GetLength(0) + "  " + (int)region.regionTypeMap.GetLength(1));
 
@@ -169,10 +176,10 @@ namespace SVGGenerator
 
                 // IF IS IN REGION, START DRAWING LINE
                 //
-                float valueSample = region.regionTypeMap[(int)xSample, (int)ySample];//  svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
+                PixelType pixelType = region.regionTypeMap[(int)xSample, (int)ySample];//  svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
                 if (!drawingLine)
                 {
-                    if (valueSample == 1)
+                    if (pixelType == PixelType.InRegion)
                     {
                         if (fillLines == null)
                             fillLines = new List<Line>();
@@ -181,13 +188,13 @@ namespace SVGGenerator
                         //
                         for (int i = 0; i < region.pixelRadiusLow * 2; i++)
                         {
-                            xSample -= dir.x;
-                            ySample -= dir.y;
-                            float newValueSample = region.regionTypeMap[(int)xSample, (int)ySample];// svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
-                            if (newValueSample == 0)
+                            xSample -= dirNorm.x;
+                            ySample -= dirNorm.y;                            
+                            if (region.regionTypeMap[(int)xSample, (int)ySample] == PixelType.NotInRegion ||
+                                region.regionTypeMap[(int)xSample, (int)ySample] == PixelType.Border)
                             {
-                                xSample += dir.x;
-                                ySample += dir.y;
+                                //xSample += dirNorm.x;
+                                //ySample += dirNorm.y;
                                 break;
                             }
                         }
@@ -198,24 +205,24 @@ namespace SVGGenerator
                         newLine = new Line() { p0 = new Vector2((int)xSample,(int)ySample), newLine = true };
                     }
                 }
-                // IF NOT DARK ENOUGH AND DRAWING A LINE, FINISH LINE AND ADD TOO LINE LIST
+                // IF DRAWING AND NOT IN REGION, FINISH LINE AND ADD TOO LINE LIST
                 //
                 else
                 {
-                    if (valueSample != 1)
+                    if (pixelType == PixelType.NotInRegion)
                     {
                         // LOOK BACKWARDS ALONG DIRECTION TO FIND BORDER PIXEL
                         //
                         for (int i = 0; i < region.pixelRadiusLow * 2; i++)
                         {
-                            xSample -= dir.x;
-                            ySample -= dir.y;
+                            xSample -= dirNorm.x;
+                            ySample -= dirNorm.y;
 
                             if (xSample <=0 || ySample <= 0)
                                 break;
 
-                            float newValueSample = region.regionTypeMap[(int)xSample, (int)ySample]; // svgExporter.GetValueAtPixel(region.imageValueSelectionType, (int)xSample, (int)ySample);
-                            if (newValueSample == 1)
+                            if (region.regionTypeMap[(int)xSample, (int)ySample] == PixelType.InRegion ||
+                                region.regionTypeMap[(int)xSample, (int)ySample] == PixelType.Border)
                             {
                                 //xSample += dir.x;
                                 //ySample += dir.y;
@@ -260,7 +267,7 @@ namespace SVGGenerator
             {
                 Vector2 poisonDiscSample = poisonDiscSampledPoints[i];
 
-                if (region.regionMap[(int)(poisonDiscSample.x + boundsOffset.x), (int)(poisonDiscSample.y + boundsOffset.y)] > 0)
+                if (region.regionValueMap[(int)(poisonDiscSample.x + boundsOffset.x), (int)(poisonDiscSample.y + boundsOffset.y)] > 0)
                 {
                     Line newLine = new Line()
                     {
@@ -317,7 +324,7 @@ namespace SVGGenerator
                     // If in the region
                     //
                     Vector2 startPos = poisonDiscSampledPoints[i] + boundsOffset;
-                    float startRegionValue = region.regionMap[(int)(startPos.x), (int)(startPos.y)];
+                    float startRegionValue = region.regionValueMap[(int)(startPos.x), (int)(startPos.y)];
                     if (startRegionValue > valueMin && startRegionValue < valueMax)
                     {
                         // Refine stipple length so that it fits within the region
@@ -334,7 +341,7 @@ namespace SVGGenerator
                             if (endPoint.x >= svgExporter.tex.width - 1 || endPoint.y >= svgExporter.tex.height - 1)
                                 break;
 
-                            float endRegionValue = region.regionMap[(int)endPoint.x, (int)endPoint.y];
+                            float endRegionValue = region.regionValueMap[(int)endPoint.x, (int)endPoint.y];
 
                             // If not inside value range break
                             if (endRegionValue < valueMin || endRegionValue > valueMax)

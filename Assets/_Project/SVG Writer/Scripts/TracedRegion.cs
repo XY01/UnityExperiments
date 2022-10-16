@@ -58,15 +58,28 @@ namespace SVGGenerator
         public Fill fill = new Fill();
 
         [HideInInspector]
-        public float[,] regionMap;
-        public float[,] regionTypeMap;
+        public float[,] regionValueMap;
+        public PixelType[,] regionTypeMap;
         public Texture2D regionMapTex;
         public float areaInPixels;
         public Vector4 bounds;
 
+        [HideInInspector]
+        public Vector2[] neighborsClockwize = new Vector2[8]
+        {
+            new Vector2(-1,0),
+            new Vector2(-1,1),
+            new Vector2(0,1),
+            new Vector2(1,1),
+            new Vector2(1,0),
+            new Vector2(1,-1),
+            new Vector2(0,-1),
+            new Vector2(-1,-1),
+        };
+
         public void GenerateRegionMap(SVGExporter svgExporter)
         {
-            regionMap = new float[svgExporter.tex.width, svgExporter.tex.height];
+            regionValueMap = new float[svgExporter.tex.width, svgExporter.tex.height];
 
             int xMin = 9999;
             int xMax = -9999;
@@ -74,14 +87,16 @@ namespace SVGGenerator
             int yMax = -9999;
             int count = 0;
 
-            for (int x = 0; x < svgExporter.tex.width; x++)
+            // FIND VALUES IN RANGE AND STORE IN REGION MAP
+            //
+            for (int x = 1; x < svgExporter.tex.width-1; x++)
             {
-                for (int y = 0; y < svgExporter.tex.height; y++)
+                for (int y = 1; y < svgExporter.tex.height-1; y++)
                 {
                     float val = svgExporter.GetValueAtPixel(imageValueSelectionType, x, y);
                     if (minRange < val && val < maxRange)
                     {
-                        regionMap[x, y] = val;
+                        regionValueMap[x, y] = val;
 
                         xMin = Mathf.Min(x, xMin);
                         xMax = Mathf.Max(x, xMax);
@@ -91,59 +106,111 @@ namespace SVGGenerator
                     }
                     else
                     {
-                        regionMap[x, y] = 0;
+                        regionValueMap[x, y] = 0;
                     }
                 }
             }
 
+
+            // BOUNDS, AREA, FLOOD FILL
             bounds = new Vector4(xMin, yMin, xMax, yMax);
             areaInPixels = count;
-
             //floodFillCount = 0;
             //floodFillUtil(regionMap, 10, 10, 0, 1);
 
-            regionTypeMap = new float[regionMap.GetLength(0),regionMap.GetLength(1)];
+
+            // GENERATE REGION TYPE MAP AND REGION TEX
+            //
+            regionTypeMap = new PixelType[regionValueMap.GetLength(0),regionValueMap.GetLength(1)];
+            for (int x = 0; x < regionValueMap.GetLength(0); x++)
+            {
+                for (int y = 0; y < regionValueMap.GetLength(1); y++)
+                {
+                    if (regionValueMap[x, y] == 0)
+                    {
+                        regionTypeMap[x, y] = PixelType.NotInRegion;
+                    }
+                    // IF BORDER
+                    else if (x > 0 && x < regionValueMap.GetLength(0) && y > 0 && y < regionValueMap.GetLength(1))
+                    {
+                        bool isBorder = false;
+                        // IF ANY NEIGHBORS ARE OUT OF RANGE THEN IT'S A BORDER
+                        foreach (Vector2 neighborOffset in neighborsClockwize)
+                        {
+                            if (regionValueMap[x + (int)neighborOffset.x, y + (int)neighborOffset.y] == 0)
+                            {
+                                isBorder = true;
+                                regionTypeMap[x, y] = PixelType.Border;
+                                break;
+                            }
+                        }
+
+                        if(!isBorder)
+                        {
+                            regionTypeMap[x, y] = PixelType.InRegion;
+                        }                       
+                    }
+                    else
+                    {
+                        regionTypeMap[x, y] = PixelType.InRegion;
+                    }
+                }
+            }
+
+
+            // DISCARD BORDERS NOT WITH NO ADJASCENT IN RANGE TYPE VALUES
+            //
+            for (int x = 1; x < regionTypeMap.GetLength(0) - 1; x++)
+            {
+                for (int y = 1; y < regionTypeMap.GetLength(1) - 1; y++)
+                {
+                    if (regionTypeMap[x, y] == PixelType.Border)
+                    {
+                        bool keep = false;
+                        foreach(Vector2 neighborOffset in neighborsClockwize)
+                        {
+                            if(regionTypeMap[x + (int)neighborOffset.x, y + (int)neighborOffset.y] == PixelType.InRegion)
+                            {
+                                keep = true;                               
+                                break;
+                            }
+                        }
+
+                        if(!keep)
+                        {
+                            regionTypeMap[x, y] = PixelType.NotInRegion;
+                            regionValueMap[x, y] = 0;
+                        }
+                    }
+                }
+            }
+
+
+            // GENRATE TEXTURE FROM REGION MAP
+            //
             regionMapTex = new Texture2D
             (
-                regionMap.GetLength(0),
-                regionMap.GetLength(1),
+                regionValueMap.GetLength(0),
+                regionValueMap.GetLength(1),
                 TextureFormat.ARGB32,
                 true
             );
 
-            for (int x = 0; x < regionMap.GetLength(0); x++)
+            for (int x = 0; x < regionValueMap.GetLength(0); x++)
             {
-                for (int y = 0; y < regionMap.GetLength(1); y++)
+                for (int y = 0; y < regionValueMap.GetLength(1); y++)
                 {
-                    if(regionMap[x,y] == 0)
+                    switch(regionTypeMap[x, y])
                     {
-                        regionTypeMap[x, y] = 0;
-                        regionMapTex.SetPixel(x, y, Color.black);
-                    }
-                    // IF BORDER
-                    else if(x > 0 && x < regionMap.GetLength(0) && y > 0 && y < regionMap.GetLength(1))
-                    {
-                        if
-                        (
-                            regionMap[x-1, y] == 0 ||
-                            regionMap[x + 1, y] == 0 ||
-                            regionMap[x, y - 1] == 0 ||
-                            regionMap[x, y + 1] == 0
-                        )
-                        {
-                            regionTypeMap[x, y] = 2;
+                        case PixelType.NotInRegion:
+                            regionMapTex.SetPixel(x, y, Color.black);
+                            break;
+                        case PixelType.InRegion:
+                            regionMapTex.SetPixel(x, y, Color.yellow);
+                            break;
+                        case PixelType.Border:
                             regionMapTex.SetPixel(x, y, Color.blue);
-                        }
-                        else
-                        {
-                            regionTypeMap[x, y] = 1;
-                            regionMapTex.SetPixel(x, y, Color.red);
-                        }
-                    }
-                    else
-                    {
-                        regionTypeMap[x, y] = 1;
-                        regionMapTex.SetPixel(x, y, Color.red);
+                            break;
                     }
                 }
             }
@@ -213,39 +280,15 @@ namespace SVGGenerator
 
         private void TraceContours(SVGExporter svgExporter, List<Contour> contourList, float valueCutoff)
         {
-            int[,] contourPixels = new int[svgExporter.tex.width, svgExporter.tex.height];
+            int[,] contourSampleCounts = new int[svgExporter.tex.width, svgExporter.tex.height];
             int debugContourSampleCount;
             int debugMaxSamplesPerContour = 40000;
             int contourCount = 0;
             int maxContourSampleCount = 2;
 
-            Vector2[] neighborsClockwize = new Vector2[8]
-            {
-                new Vector2(-1,0),
-                new Vector2(-1,1),
-                new Vector2(0,1),
-                new Vector2(1,1),
-                new Vector2(1,0),
-                new Vector2(1,-1),
-                new Vector2(0,-1),
-                new Vector2(-1,-1),
-            };
-
-            Vector2[] neighborsAntiClockwize = new Vector2[8]
-            {
-                new Vector2(-1,0),
-                new Vector2(-1,-1),
-                new Vector2(0,-1),
-                new Vector2(1,-1),
-                new Vector2(1,0),
-                new Vector2(1,1),
-                new Vector2(0,1),
-                new Vector2(-1,1)
-            };
-
-            bool isBorderPixel = svgExporter.GetValueAtPixel(imageValueSelectionType, 0, 0) < valueCutoff;
-            int xSamples = Mathf.FloorToInt(svgExporter.tex.width / samplingPixelStep);
-            int ySamples = Mathf.FloorToInt(svgExporter.tex.height / samplingPixelStep);
+            bool inInRegion = false;
+            int xSamples = svgExporter.tex.width;// Mathf.FloorToInt(svgExporter.tex.width / samplingPixelStep);
+            int ySamples = svgExporter.tex.height;// Mathf.FloorToInt(svgExporter.tex.height / samplingPixelStep);
 
             for (int x = 0; x < xSamples; x++)
             {
@@ -257,19 +300,18 @@ namespace SVGGenerator
                         return;
                     }
 
-                    int xSample = x * samplingPixelStep;
-                    int ySample = y * samplingPixelStep;
+                    int xSample = x;// * samplingPixelStep;
+                    int ySample = y;// * samplingPixelStep;
                     svgExporter.debugPos = new Vector2(x, y);
 
-                    bool prevIsBorderPix = isBorderPixel;
-                    float valueAtPixel = svgExporter.GetValueAtPixel(imageValueSelectionType, xSample, ySample);
-                    isBorderPixel = valueAtPixel < valueCutoff; ;
-                                        
+                    bool prevIsBorderPix = inInRegion;                 
+                    inInRegion = regionValueMap[x, y] != 0;
+
                     // FIND PIXEL THAT CROSSES A BORDER
                     //
-                    if (isBorderPixel && !prevIsBorderPix &&
-                        valueAtPixel < valueCutoff &&
-                        contourPixels[xSample, ySample] == 0)
+                    if (inInRegion && 
+                        !prevIsBorderPix &&
+                        contourSampleCounts[xSample, ySample] == 0)
                     {
                         debugContourSampleCount = 0;
 
@@ -277,17 +319,10 @@ namespace SVGGenerator
                         //
                         Vector2 startPix = new Vector2(xSample, ySample);
                         Vector2 currentContourPix = new Vector2(xSample, ySample);
-
                         Contour newContour = new Contour() { startPix = startPix };
-
-                        bool clockwise = svgExporter.startClockwize;
-
-                        contourPixels[xSample, ySample]++;
+                        contourSampleCounts[xSample, ySample]++;
                         Line newLine = new Line() { p0 = startPix, newLine = true };
 
-                        // DEBUG
-                        //                  
-                        if (svgExporter.debugPrint) Debug.Log("*************FOUND BORDER PIXEL: " + currentContourPix);
 
                         // SEARCH ADJASCENT PIXELS CLOCKWISE UNTIL FINDING A BLACK PIXEL THAT COMES AFTER A WHITE PIXEL
                         //                 
@@ -304,14 +339,12 @@ namespace SVGGenerator
                             }
 
 
-
                             // GET NEIGHBOR COORDS, EITHER CLOCK OR ANTI CLOCKWISE
                             //
                             neighborIndex %= neighborsClockwize.Length;
                             int searchX, searchY;
-                            searchX = clockwise ? (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x * samplingPixelStep : (int)currentContourPix.x + (int)neighborsAntiClockwize[neighborIndex].x * samplingPixelStep;
-                            searchY = clockwise ? (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y * samplingPixelStep : (int)currentContourPix.y + (int)neighborsAntiClockwize[neighborIndex].y * samplingPixelStep;
-
+                            searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;// * samplingPixelStep;
+                            searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;// * samplingPixelStep;
 
 
                             // IF OUTSIDE OF THE IMAGE BOUNDS THEN CONT TO NEXT NEIGHBOR
@@ -322,7 +355,7 @@ namespace SVGGenerator
 
                             // CHECK TO SEE IF THIS PIXEL HAS BEEN SEARCHED BEFORE
                             //
-                            if (contourPixels[searchX, searchY] >= maxContourSampleCount)
+                            if (contourSampleCounts[searchX, searchY] >= maxContourSampleCount)
                             {
                                 if (svgExporter.debugPrint) Debug.Log("********  ENDING CONTOUR:    Sampling contour pixel more than twice, Breaking");
                                 break;
@@ -341,7 +374,7 @@ namespace SVGGenerator
 
                             // SET FOUND PIXEL TO CURRENT POS AND ITERATE
                             //
-                            if (svgExporter.GetValueAtPixel(imageValueSelectionType, searchX, searchY) < valueCutoff)
+                            if (regionValueMap[searchX, searchY] == 0)
                             {
                                 if (svgExporter.debugPrint) Debug.Log($"-------   Found contour: {searchX} {searchY} @   nIndex:  {neighborIndex}");
 
@@ -382,7 +415,7 @@ namespace SVGGenerator
                                 //
                                 newContour.lines.Add(newLine);
 
-                                contourPixels[searchX, searchY]++;
+                                contourSampleCounts[searchX, searchY]++;
 
                                 currentContourPix = newContourPixel;
                                 newLine = new Line() { p0 = currentContourPix, newLine = false };
