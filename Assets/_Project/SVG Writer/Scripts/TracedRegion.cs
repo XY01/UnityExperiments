@@ -286,9 +286,9 @@ namespace SVGGenerator
             int contourCount = 0;
             int maxContourSampleCount = 2;
 
-            bool inInRegion = false;
-            int xSamples = svgExporter.tex.width;// Mathf.FloorToInt(svgExporter.tex.width / samplingPixelStep);
-            int ySamples = svgExporter.tex.height;// Mathf.FloorToInt(svgExporter.tex.height / samplingPixelStep);
+            bool isInRegion = false;
+            int xSamples = Mathf.FloorToInt(svgExporter.tex.width / samplingPixelStep);
+            int ySamples = Mathf.FloorToInt(svgExporter.tex.height / samplingPixelStep);
 
             for (int x = 0; x < xSamples; x++)
             {
@@ -300,16 +300,16 @@ namespace SVGGenerator
                         return;
                     }
 
-                    int xSample = x;// * samplingPixelStep;
-                    int ySample = y;// * samplingPixelStep;
+                    int xSample = x * samplingPixelStep;
+                    int ySample = y * samplingPixelStep;
                     svgExporter.debugPos = new Vector2(x, y);
 
-                    bool prevIsBorderPix = inInRegion;                 
-                    inInRegion = regionValueMap[x, y] != 0;
+                    bool prevIsBorderPix = isInRegion;                 
+                    isInRegion = regionValueMap[x, y] != 0;
 
                     // FIND PIXEL THAT CROSSES A BORDER
                     //
-                    if (inInRegion && 
+                    if (isInRegion && 
                         !prevIsBorderPix &&
                         contourSampleCounts[xSample, ySample] == 0)
                     {
@@ -342,9 +342,8 @@ namespace SVGGenerator
                             // GET NEIGHBOR COORDS, EITHER CLOCK OR ANTI CLOCKWISE
                             //
                             neighborIndex %= neighborsClockwize.Length;
-                            int searchX, searchY;
-                            searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;// * samplingPixelStep;
-                            searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;// * samplingPixelStep;
+                            int searchX = (int)currentContourPix.x + (int)neighborsClockwize[neighborIndex].x;// * samplingPixelStep;
+                            int searchY = (int)currentContourPix.y + (int)neighborsClockwize[neighborIndex].y;// * samplingPixelStep;
 
 
                             // IF OUTSIDE OF THE IMAGE BOUNDS THEN CONT TO NEXT NEIGHBOR
