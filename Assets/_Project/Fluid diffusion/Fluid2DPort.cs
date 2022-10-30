@@ -2,33 +2,52 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Drawing;
+using Unity.VisualScripting;
 using UnityEngine;
 using UnityEngine.Rendering.Universal;
 using Color = UnityEngine.Color;
 using Random = UnityEngine.Random;
 
+
+// REFS
+// https://www.dgp.toronto.edu/public_user/stam/reality/Research/pdf/GDC03.pdf
+// https://www.youtube.com/watch?v=alhpH6ECFvQ
+// https://www.youtube.com/watch?v=qsYE1wMEMPA
+// https://www.youtube.com/watch?v=rB83DpBJQsE&t=817s
+
+// TODO 
+// - Walls
+// - Height map
 public class Fluid2DPort : MonoBehaviour
 {
-    public const int dimensions = 32;
+    #region VARIABLES    
+    public const int dimensions = 64;
+    public float densityDiffusionRate = .0001f;
+    public float viscosity = 1;
+    public float densityDissipationRate = .5f;
+
+    public float mouseVelScalar = 1;
 
     float[,] density = new float[dimensions, dimensions];
     float[,] density0 = new float[dimensions, dimensions];
 
-    Vector2[,] velocities = new Vector2[dimensions, dimensions];
+    float[,] velX = new float[dimensions, dimensions];
+    float[,] velX0 = new float[dimensions, dimensions];
 
-  
-    Vector2[,] velocities0 = new Vector2[dimensions, dimensions];
+    float[,] velY = new float[dimensions, dimensions];
+    float[,] velY0 = new float[dimensions, dimensions];
 
 
-    public float densityDiffusionRate = 1;
-    public float advectionRate = 1;
-
+    // MOUSE INPUT
     Vector3 mouseVel;
     Vector3 prevMousePos;
-    public Vector3 mousePos;
+    Vector3 mousePos;
 
-    public float debugDensityAdd = 1f;
-
+    [Header("DEBUG")]
+    public float debugDiffScalar = 1;
+    float[,] debugDensityDiffuseDiff = new float[dimensions, dimensions];
+    float[,] debugDensityAdvectionDiff = new float[dimensions, dimensions];
+    #endregion
 
 
     [ContextMenu("Start")]
@@ -55,81 +74,82 @@ public class Fluid2DPort : MonoBehaviour
                     density[x, y] = xNorm * yNorm;
                     density0[x, y] = xNorm * yNorm;
                 }
-
-                //velocities[x, y] = Random.insideUnitCircle;
-                //velocities[x, y] = Vector2.right * Random.value;
             }
         }
     }
 
-
-    void Reset()
-    {
-        for (int x = 0; x < dimensions; x++)
-        {
-            for (int y = 0; y < dimensions; y++)
-            {
-                density[x, y] = 0;
-                density0[x, y] = 0;
-                velocities[x, y] = Vector2.zero;
-            }
-        }
-    }
 
     // Update is called once per frame
     void Update()
     {
-        if (Input.GetKey(KeyCode.D))
-        {
-            //Swap(density, density0);
-            Diffuse(density0, density, densityDiffusionRate, Time.fixedDeltaTime);
-            Swap(density0, density);
-            Advection(Time.fixedDeltaTime * advectionRate);
-            Swap(density0, density);
-            //DiffuseNew(density, density0, densityDiffusionRate, Time.fixedDeltaTime);
-        }
-
-        if (Input.GetKey(KeyCode.A))
-           
-
-        if (Input.GetKey(KeyCode.R))
-            Reset();
-
-
-        // MOUSE INTERACTION
-        //
+        #region MOUSE INTERACTION        
         Vector3 screenPoint = Input.mousePosition;
         screenPoint.z = -Camera.main.transform.position.z; //distance of the plane from the camera
         mousePos = Camera.main.ScreenToWorldPoint(screenPoint);
 
-        Vector3 newMouseVel = (mousePos - prevMousePos)/Time.deltaTime;
-        newMouseVel *= .3f;
+        Vector3 newMouseVel = (mousePos - prevMousePos) / Time.deltaTime;
+        newMouseVel *= mouseVelScalar;
         mouseVel = Vector3.Lerp(mouseVel, newMouseVel, Time.deltaTime * 8);
-
         prevMousePos = mousePos;
+        #endregion
 
-        //velocities[(int)dimensions/2, (int)dimensions / 2] = Vector2.up;
-        //density[(int)dimensions / 2, (int)dimensions / 2] += Time.deltaTime * debugDensityAdd;
 
-        // CHANGE VEL
         if (Input.GetMouseButton(0))
         {
+            int interactionSize = 4;
             Vector2 coord = GetGridCoord(mousePos);
-            velocities[(int)coord.x, (int)coord.y] = mouseVel;
+            coord.x = Math.Clamp(coord.x, 0, dimensions - 1 - interactionSize);
+            coord.y = Math.Clamp(coord.y, 0, dimensions - 1 - interactionSize);
+            for (int x = 0; x < interactionSize; x++)
+            {
+                for (int y = 0; y < interactionSize; y++)
+                {
+                    velX[(int)coord.x + x, (int)coord.y + y] = mouseVel.x;
+                    velY[(int)coord.x + x, (int)coord.y + y] = mouseVel.y;
+                    density[(int)coord.x + x, (int)coord.y + y] = 1;
+                }
+            }
         }
-        // ADD DENSITY
-        if (Input.GetMouseButton(1))
+
+        VelocityUpdate();
+        DensityUpdate();
+
+        for (int i = 1; i < dimensions - 1; i++)
         {
-            Vector2 coord = GetGridCoord(mousePos);
-            density[(int)coord.x, (int)coord.y] += Time.deltaTime * 10;
-            density0[(int)coord.x, (int)coord.y] += Time.deltaTime * 10;
+            for (int j = 1; j < dimensions - 1; j++)
+            {
+                density[i, j] -= densityDissipationRate * Time.deltaTime;
+                density[i, j] = Mathf.Max(density[i, j], 0);
+            }
         }
+
+        if (Input.GetKey(KeyCode.R))
+            Reset();
     }
 
+    void DensityUpdate()
+    {
+        Swap(density0, density);
+        diffuse(dimensions, boundaryMode: 0, density, density0, densityDiffusionRate, Time.fixedDeltaTime);
+        Swap(density0, density);
+        advect(dimensions, boundaryMode: 0, density, density0, velX, velY, Time.fixedDeltaTime);      
+    }
 
+    void VelocityUpdate()
+    {
+        Swap(velX0, velX);
+        diffuse(dimensions, 1, velX, velX0, viscosity, Time.fixedDeltaTime);
+        Swap(velY0, velY);
+        diffuse(dimensions, 2, velY, velY0, viscosity, Time.fixedDeltaTime);
+        project(dimensions, velX, velY, velX0, velY0);
+        Swap(velX0, velX);
+        Swap(velY0, velY);
+        advect(dimensions, boundaryMode: 1, velX, velX0, velX0, velY0, Time.fixedDeltaTime);
+        advect(dimensions, boundaryMode: 2, velY, velY0, velX0, velY0, Time.fixedDeltaTime);
+        project(dimensions, velX, velY, velX0, velY0);
+    }
 
-    #region PORTED FUNCTIONS   
-    void Diffuse(float[,] toArray, float[,] fromArray, float diff, float dt)
+    void diffuse(int dimensions, int boundaryMode, float[,] toArray, float[,] fromArray, float diff, float dt)
     {
         float a = dt * diff * dimensions * dimensions;
         for (int iterations = 0; iterations < 20; iterations++)
@@ -138,23 +158,23 @@ public class Fluid2DPort : MonoBehaviour
             {
                 for (int j = 1; j < dimensions-1; j++)
                 {
-                    float neighborAggregate = toArray[i - 1, j] + toArray[i + 1, j] + toArray[i, j - 1] + toArray[i, j + 1];
-                    toArray[i, j] = (fromArray[i, j] + a * neighborAggregate) / (1 + 4 * a);
+                    float neighborSUM = toArray[i - 1, j] + toArray[i + 1, j] + toArray[i, j - 1] + toArray[i, j + 1];
+                    toArray[i, j] = (fromArray[i, j] + a * neighborSUM) / (1 + 4 * a);
                 }
             }
-            SetBoundaries(true, true, toArray, dimensions);
+            set_bnd(dimensions, boundaryMode, toArray);
         }
     }
 
-    void Advection(float timeStep)
-    {
-        for (int x = 0; x < dimensions; x++)
+    void advect(int dimensions, int boundaryMode, float[,] density, float[,] density0, float[,] velX, float[,] velY, float dt)
+    {       
+        float dt0 = dt * dimensions;
+        for (int x = 1; x < dimensions-1; x++)
         {
-            for (int y = 0; y < dimensions; y++)
+            for (int y = 1; y < dimensions-1; y++)
             {
-                // Position backwards along vel vector
-                float xPos = x - velocities[x, y].x * timeStep;
-                float yPos = y - velocities[x, y].y * timeStep;
+                float xPos = x - velX[x, y] * dt0;
+                float yPos = y - velY[x, y] * dt0;
 
                 // Get index by flooring and clamping pos
                 int xIndex = Mathf.FloorToInt(xPos);
@@ -166,184 +186,102 @@ public class Fluid2DPort : MonoBehaviour
                 float xInterpolation = xPos - xIndex;
                 float yInterpolation = yPos - yIndex;
 
-                float lerpedUpperDensity = Mathf.Lerp(density[xIndex, yIndex], density[xIndex + 1, yIndex], xInterpolation);
-                float lerpedLowerDensity = Mathf.Lerp(density[xIndex, yIndex + 1], density[xIndex + 1, yIndex + 1], xInterpolation);
-                density0[x, y] = Mathf.Lerp(lerpedUpperDensity, lerpedLowerDensity, yInterpolation);
-
-                // VELOCITY
-                //Vector2 lerpedUpperVel = Vector2.Lerp(velocities[xIndex, yIndex], velocities[xIndex + 1, yIndex], xInterpolation);
-                //Vector2 lerpedLowerVel = Vector2.Lerp(velocities[xIndex, yIndex + 1], velocities[xIndex + 1, yIndex + 1], xInterpolation);
-                //targetVelocities[x, y] = Vector2.Lerp(lerpedUpperVel, lerpedLowerVel, yInterpolation);
-                //targetVelocities[x, y] = velocities[x, y];
+                float lerpedUpperDensity = Mathf.Lerp(density0[xIndex, yIndex], density0[xIndex + 1, yIndex], xInterpolation);
+                float lerpedLowerDensity = Mathf.Lerp(density0[xIndex, yIndex + 1], density0[xIndex + 1, yIndex + 1], xInterpolation);
+                density[x, y] = Mathf.Lerp(lerpedUpperDensity, lerpedLowerDensity, yInterpolation);
             }
         }
-        SetBoundaries(true, true, density0, dimensions);
-        //InterpolateDensityBuffers(timeStep);
+
+        set_bnd(dimensions, boundaryMode, density);
     }
 
-    //void advect(float[,] d, float[,] d0, Vector2[,] vel, float dt)
-    //{
-    //    int i0, j0, i1, j1;
-    //    float x, y, s0, t0, s1, t1, dt0;
-    //    dt0 = dt * N;
-    //    for (int i = 1; i <= N; i++)
-    //    {
-    //        for (int j = 1; j <= N; j++)
-    //        {
-    //            float x = i - dt0 * vel[i, j].x;
-    //            float y = j - dt0 * vel[i, j].y;
-
-    //            if (x < 0.5) x = 0.5; 
-    //            if (x > N + 0.5) x = N + 0.5; 
-    //            float i0 = (int)x; 
-    //            float i1 = i0 + 1;
-
-    //            if (y < 0.5) y = 0.5;
-    //            if (y > N + 0.5) y = N + 0.5;
-    //            float j0 = (int)y; 
-    //            float j1 = j0 + 1;
-
-    //            s1 = x - i0; 
-    //            s0 = 1 - s1; 
-    //            t1 = y - j0; 
-    //            t0 = 1 - t1;
-
-    //            d[i, j] = s0 * (t0 * d0[i0, j0] + t1 * d 0[i0, j1])+
-    //                      s1 * (t0 * d0[i1, j0] + t1 * d0[i1, j1]);
-    //        }
-    //    }
-    //    SetBoundaries(true, true, d, dimensions);
-    //}
-
-
-    /*
-    void advect(int N, int b, float* d, float* d0, float* u, float* v, float dt)
+    void project(int dimensions, float[,] velX, float[,] velY, float[,] p, float[,] div)
     {
-        int i, j, i0, j0, i1, j1;
-        float x, y, s0, t0, s1, t1, dt0;
-        dt0 = dt * N;
-        for (i = 1; i <= N; i++)
+        int k;
+        float h = 1.0f / dimensions;
+        for (int x = 1; x < dimensions-1; x++)
         {
-            for (j = 1; j <= N; j++)
+            for (int y = 1; y < dimensions-1; y++)
             {
-                x = i - dt0 * u[IX(i, j)]; y = j - dt0 * v[IX(i, j)];
-                if (x < 0.5) x = 0.5; if (x > N + 0.5) x = N + 0.5; i0 = (int)x; i1 = i0 + 1;
-                if (y < 0.5) y = 0.5; if (y > N + 0.5) y = N + 0.5; j0 = (int)y; j1 = j0 + 1;
-                s1 = x - i0; s0 = 1 - s1; t1 = y - j0; t0 = 1 - t1;
-                d[IX(i, j)] = s0 * (t0 * d0[IX(i0, j0)] + t1 * d 0[IX(i0, j1)])+
-                 s1 * (t0 * d0[IX(i1, j0)] + t1 * d0[IX(i1, j1)]);
+                div[x, y] = -0.5f * h * (velX[x + 1, y] - velX[x - 1, y] +
+                velY[x, y + 1] - velY[x, y - 1]);
+                p[x, y] = 0;
             }
         }
-        set_bnd(N, b, d);
-    }
-*/
 
-    public void SetBoundaries(bool xBoundaries, bool yBoundaries, float[,] x, int dimensions)
-    {
-        // SET BOUNDARY TO SAME OR NEGATIVE OF NEIGHBOR
-        //
+        set_bnd(dimensions, 0, div); 
+        set_bnd(dimensions, 0, p);
+
+        for (k = 0; k < 20; k++)
+        {
+            for (int x = 1; x < dimensions - 1; x++)
+            {
+                for (int y = 1; y < dimensions - 1; y++)
+                {
+                    p[x, y] = (div[x, y] + p[x - 1, y] + p[x + 1, y] +
+                     p[x, y - 1] + p[x, y + 1]) / 4;
+                }
+            }
+            set_bnd(dimensions, 0, p);
+        }
+        for (int x = 1; x < dimensions - 1; x++)
+        {
+            for (int y = 1; y < dimensions - 1; y++)
+            {
+                velX[x, y] -= 0.5f * (p[x + 1, y] - p[x - 1, y]) / h;
+                velY[x, y] -= 0.5f * (p[x, y + 1] - p[x, y - 1]) / h;
+            }
+        }
+        set_bnd(dimensions, 1, velX);
+        set_bnd(dimensions, 2, velY);
+    }
+
+    void set_bnd(int dimensions, int boundaryMode, float[,] inputArray )
+    {    
+        // SET BORDERS
         for (int i = 1; i < dimensions-1; i++)
         {
-            x[0, i] = yBoundaries ? -x[1, i] : x[1, i];
-            x[dimensions - 1, i] = yBoundaries ? -x[dimensions - 1, i] : x[dimensions - 1, i];
-
-            x[i, 0] = xBoundaries ? -x[i, 1] : x[i, 1];
-            x[i, dimensions - 1] = xBoundaries ? -x[i, dimensions - 1] : x[i, dimensions - 1];
+            inputArray[0,i] = boundaryMode == 1 ? -inputArray[1,i] : inputArray[1,i];
+            inputArray[dimensions-1, i] = boundaryMode == 1 ? -inputArray[dimensions-2, i] : inputArray[dimensions-2, i];
+            inputArray[i,0] = boundaryMode == 2 ? -inputArray[i,1] : inputArray[i,1];
+            inputArray[i, dimensions - 1] = boundaryMode == 2 ? -inputArray[i, dimensions - 2] : inputArray[i, dimensions - 2];
         }
 
         // SET CORNERS
-        //
-        x[0, 0] = 0.5f * (x[1, 0] + x[0, 1]);
-        x[0, dimensions - 1] = 0.5f * (x[1, dimensions - 1] + x[0, dimensions - 2]);
-        x[dimensions - 1, 0] = 0.5f * (x[dimensions - 2, 0] + x[dimensions - 1, 1]);
-        x[dimensions - 1, dimensions - 1] = 0.5f * (x[dimensions - 2, dimensions - 1] + x[dimensions - 1, dimensions - 2]);
+        inputArray[0, 0] = 0.5f * (inputArray[1, 0] + inputArray[0, 1]);
+        inputArray[0, dimensions-1] = 0.5f * (inputArray[1, dimensions-1] + inputArray[0, dimensions-2]);
+        inputArray[dimensions-1, 0] = 0.5f * (inputArray[dimensions-2, 0] + inputArray[dimensions-1, 1]);
+        inputArray[dimensions-1, dimensions-1] = 0.5f * (inputArray[dimensions-2, dimensions-1] + inputArray[dimensions-1, dimensions-2]);
     }
 
+    void Reset()
+    {
+        for (int x = 0; x < dimensions; x++)
+        {
+            for (int y = 0; y < dimensions; y++)
+            {
+                density[x, y] = 0;
+                density0[x, y] = 0;
+                velX[x, y] = 0;
+                velY[x, y] = 0;
+            }
+        }
+    }
 
-    void Swap(float[,] fromArray, float[,]tooArray)
+    #region HELPER AND GIZMOS
+    void Swap(float[,] fromArray, float[,] tooArray)
     {
         for (int i = 1; i < dimensions - 1; i++)
         {
             for (int j = 1; j < dimensions - 1; j++)
             {
-                float temp = fromArray[i,j];
+                float temp = fromArray[i, j];
                 fromArray[i, j] = tooArray[i, j];
                 tooArray[i, j] = temp;
             }
         }
     }
 
-    /*
-     * void set_bnd ( int N, int b, flo at * x )
-    {
-    int i;
-        for ( i=1 ; i<=N ; i++ )
-        {
-            x[IX(0 ,i)] = b==1 ? –x[IX(1,i)] : x[IX(1,i)];
-            x[IX(N+1,i)] = b==1 ? –x[IX(N,i)] : x[IX(N,i)];
-            x[IX(i,0 )] = b==2 ? –x[IX(i,1)] : x[IX(i,1)];
-            x[IX(i,N+1)] = b==2 ? –x[IX(i,N)] : x[IX(i,N)];
-        }
-
-        x[IX(0 ,0 )] = 0.5*(x[IX(1,0 )]+x[IX(0 ,1)]);
-        x[IX(0 ,N+1)] = 0.5*(x[IX(1,N+1)]+x[IX(0 ,N )]);
-        x[IX(N+1,0 )] = 0.5*(x[IX(N,0 )]+x[IX(N+1,1)]);
-        x[IX(N+1,N+1)] = 0.5*(x[IX(N,N+1)]+x[IX(N+1,N )]);
-    }
-
-    void diffuse(int N, int b, float* x, float* x0, float diff, float dt)
-    {
-        int i, j, k;
-        float a = dt * diff * N * N;
-        for (k = 0; k < 20; k++)
-        {
-            for (i = 1; i <= N; i++)
-            {
-                for (j = 1; j <= N; j++)
-                {
-                    x[IX(i, j)] = (x0[IX(i, j)] + a * (x[IX(i - 1, j)] + x[IX(i + 1, j)] +
-                     x[IX(i, j - 1)] + x[IX(i, j + 1)])) / (1 + 4 * a);
-                }
-            }
-            set_bnd(N, b, x);
-        }
-    }
-    */
-
-    void DiffuseNew(float[,] x, float[,] x0, float diffusionStrength, float dt)
-    {
-        float a = dt * diffusionStrength;
-        linearSolver(density, density0, a, dt, 1);        
-    }
-
-    public void linearSolver(float[,] array, float[,] arrayPrev, float strength, float timestep, int iterations)
-    {
-        float cRecip = 1f / timestep;
-        int xDimensions = array.GetUpperBound(0) - 1;
-        int yDimensions = array.GetUpperBound(1) - 1;
-        for (int t = 0; t < iterations; t++)
-        {
-            for (int x = 1; x < xDimensions; x++)
-            {
-                for (int y = 1; y < yDimensions; y++)
-                {
-                    float neighborAggregate = array[x + 1, y] +
-                                                array[x - 1, y] +
-                                                array[x, y + 1] +
-                                                array[x, y - 1];
-
-                    array[x, y] = arrayPrev[x, y] + strength * neighborAggregate * cRecip;
-                }
-            }
-
-            //FluidHelpers.SetBoundaries(true, true, array, dimensions);
-           
-        }
-    }
-
-    #endregion
-
-    #region HELPER AND GIZMOS
     Vector2 GetGridCoord(Vector3 worldPos)
     {
         Vector2 index = new Vector2(0,0);
@@ -359,7 +297,10 @@ public class Fluid2DPort : MonoBehaviour
     }
 
     private void OnDrawGizmos()
-    {        
+    {
+        if (!Application.isPlaying)
+            return;
+
         float size = 10f;
         float cellSize = size / (float)dimensions;
         Vector3 startPos = new Vector3(-size * .5f, -size * .5f, 0);
@@ -373,13 +314,20 @@ public class Fluid2DPort : MonoBehaviour
                 Gizmos.color = Color.white * density[x, y];
                 Gizmos.DrawCube(pos, Vector3.one * cellSize);
 
+                // DEBUG DENSITY DIFFUSE DIFF
+                Gizmos.color = Color.white * Mathf.Clamp01(debugDensityDiffuseDiff[x, y]);
+                Gizmos.DrawCube(pos + Vector3.right * size, Vector3.one * cellSize);
+
+                // DEBUG DENSITY ADVECT DIFF
+                Gizmos.color = Color.white * Mathf.Clamp01(debugDensityAdvectionDiff[x, y]);
+                Gizmos.DrawCube(pos + Vector3.right * size * 2f, Vector3.one * cellSize);
 
                 // VECTORFIELD
                 Gizmos.color = Color.white * .2f;
-               Vector3 vel = new Vector3
+                Vector3 vel = new Vector3
                 (
-                    velocities[x, y].x * cellSize,
-                    velocities[x, y].y * cellSize,
+                    velX[x, y] * cellSize,
+                    velY[x, y] * cellSize,
                     0
                 );
                 Gizmos.DrawLine(pos, pos + vel);
