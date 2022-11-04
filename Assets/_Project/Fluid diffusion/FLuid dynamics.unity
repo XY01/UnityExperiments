@@ -460,6 +460,7 @@ GameObject:
   - component: {fileID: 1335060516}
   - component: {fileID: 1335060515}
   - component: {fileID: 1335060517}
+  - component: {fileID: 1335060518}
   m_Layer: 0
   m_Name: Fluid 2D Port
   m_TagString: Untagged
@@ -506,7 +507,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 1335060514}
-  m_Enabled: 1
+  m_Enabled: 0
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 250237a0f3934ce4baf2b83f7ac0c73f, type: 3}
   m_Name: 
@@ -514,6 +515,23 @@ MonoBehaviour:
   densityDiffusionRate: 0.0001
   viscosity: 0.01
   densityDissipationRate: 0.5
+  mouseVelScalar: 1
+  debugDiffScalar: 1
+--- !u!114 &1335060518
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1335060514}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 48d8fafa3d7030d4f8e4cb011b288260, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: 
+  densityDiffusionRate: 0.0001
+  viscosity: 0.01
+  densityDissipationRate: 0.05
   mouseVelScalar: 1
   debugDiffScalar: 1
 --- !u!1 &1514528170
