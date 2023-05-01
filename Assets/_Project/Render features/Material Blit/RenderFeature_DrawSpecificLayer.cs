@@ -1,4 +1,5 @@
 using AmplifyShaderEditor;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
@@ -7,7 +8,7 @@ using UnityEngine.Rendering.Universal;
 /// <summary>
 /// A simple render feature that blits the current camera col buffer to a material then back the the camera col buffer.
 /// </summary>
-public class RenderFeature_MaterialBlit : ScriptableRendererFeature
+public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 {
     class CustomRenderPass : ScriptableRenderPass
     {
@@ -22,6 +23,12 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
         // Temp RT texture to blit too
         private RTHandle tempBuffer;
 
+        private RTHandle tempColBuffer;
+
+        readonly List<ShaderTagId> _shaderTagIds = new List<ShaderTagId>();
+        FilteringSettings _filteringSettings;
+        RenderStateBlock _renderStateBlock;
+
         // Constructor
         public CustomRenderPass(PassSettings settings)
         {
@@ -30,8 +37,23 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
 
             // Now that this is verified within the Renderer Feature, it's already "trusted" here
             mat = passSettings.material;
+
+
+            _filteringSettings = new FilteringSettings(RenderQueueRange.opaque, settings._layerMask);
+            // TODO Not sure what these are used for
+            _shaderTagIds.Add(new ShaderTagId("SRPDefaultUnlit"));
+            _shaderTagIds.Add(new ShaderTagId("UniversalForward"));
+            _shaderTagIds.Add(new ShaderTagId("UniversalForwardOnly"));
+            _shaderTagIds.Add(new ShaderTagId("LightweightForward"));
+
+            _renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
         }
 
+        // This method is called before executing the render pass.
+        // It can be used to configure render targets and their clear state. Also to create temporary render target textures.
+        // When empty this render pass will render to the active camera render target.
+        // You should never call CommandBuffer.SetRenderTarget. Instead call <c>ConfigureTarget</c> and <c>ConfigureClear</c>.
+        // The render pipeline will ensure target setup and clearing happens in a performant manner.
         public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
         {
             RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
@@ -44,9 +66,16 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
             colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
 
             RenderingUtils.ReAllocateIfNeeded(ref tempBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");
+            RenderingUtils.ReAllocateIfNeeded(ref tempColBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryColBuffer");
+            
+
+            //ConfigureClear(ClearFlag.Color, Color.clear);
         }
 
-      
+        // Here you can implement the rendering logic.
+        // Use <c>ScriptableRenderContext</c> to issue drawing commands or execute command buffers
+        // https://docs.unity3d.com/ScriptReference/Rendering.ScriptableRenderContext.html
+        // You don't have to call ScriptableRenderContext.submit, the render pipeline will call it at specific points in the pipeline.
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             // A reasonably common and simple safety net
@@ -55,14 +84,31 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
                 return;
             }
 
-        
+            SortingCriteria sortingCriteria = SortingCriteria.CommonOpaque;
+            DrawingSettings drawingSettings = CreateDrawingSettings(_shaderTagIds, ref renderingData, sortingCriteria);
+
+            // NOTE: Do NOT mix ProfilingScope with named CommandBuffers i.e. CommandBufferPool.Get("name").
+            // Currently there's an issue which results in mismatched markers.
             CommandBuffer cmd = CommandBufferPool.Get();
 
             using (new ProfilingScope(cmd, new ProfilingSampler(profilerTag)))
             {
+                cmd.SetRenderTarget(tempColBuffer.nameID);
+                Blit(cmd, colorBuffer, tempColBuffer);
+                mat.SetTexture("_RTex", tempColBuffer);
+
+
+                cmd.SetRenderTarget(colorBuffer);// renderingData.cameraData.renderer.cameraColorTargetHandle);
+                cmd.ClearRenderTarget(true, true, Color.yellow);
+                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings,
+                    ref _renderStateBlock);
+
+                cmd.Blit(tempColBuffer, colorBuffer, mat);
+
                 // Write to our temp buffer using our mat then write back to the camer col buffer
-                Blit(cmd, colorBuffer, tempBuffer, mat, 0); // shader pass 0
-                Blit(cmd, tempBuffer, colorBuffer); // shader pass 1
+                // Blit(cmd, colorBuffer, tempBuffer, mat, 0); // shader pass 0
+                // Blit(cmd, tempBuffer, colorBuffer); // shader pass 1
+
             }           
 
             // Execute the command buffer and release it
@@ -70,7 +116,7 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
             CommandBufferPool.Release(cmd);
         }
 
-        // Cleanup any allocated resources that were created during the execution of this render pass
+        // Cleanup any allocated resources that were created during the execution of this render pass.
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
             if (cmd == null)
@@ -88,6 +134,7 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
         {
             // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
             tempBuffer?.Release();
+            tempColBuffer?.Release();
         }
     }
 
@@ -98,6 +145,7 @@ public class RenderFeature_MaterialBlit : ScriptableRendererFeature
     {
         public Material material;
         public RenderPassEvent renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
+        public LayerMask _layerMask;
     }
 
     CustomRenderPass renderPass;

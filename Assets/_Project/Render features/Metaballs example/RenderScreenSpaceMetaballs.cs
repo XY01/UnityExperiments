@@ -7,6 +7,9 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
 {
     #region Render Objects
 
+    /// <summary>
+    /// Renders objects to a specific render target ID
+    /// </summary>
     class RenderObjectsPass : ScriptableRenderPass
     {
         readonly int _renderTargetId;
@@ -17,6 +20,8 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
         FilteringSettings _filteringSettings;
         RenderStateBlock _renderStateBlock;
 
+       
+
         public RenderObjectsPass(string profilerTag, int renderTargetId, LayerMask layerMask)
         {
             _profilingSampler = new ProfilingSampler(profilerTag);
@@ -24,6 +29,7 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
 
             _filteringSettings = new FilteringSettings(null, layerMask);
 
+            // TODO Not sure what these are used for
             _shaderTagIds.Add(new ShaderTagId("SRPDefaultUnlit"));
             _shaderTagIds.Add(new ShaderTagId("UniversalForward"));
             _shaderTagIds.Add(new ShaderTagId("UniversalForwardOnly"));
@@ -76,8 +82,11 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
         int _tmpId1;
         int _tmpId2;
 
+        int _tmpOGColId;
+
         RenderTargetIdentifier _tmpRT1;
         RenderTargetIdentifier _tmpRT2;
+        RenderTargetIdentifier _tmpOGColRT;
 
         readonly int _blurSourceId;
         RenderTargetIdentifier _blurSourceIdentifier;
@@ -110,19 +119,37 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
 
             ConfigureTarget(_tmpRT1);
             ConfigureTarget(_tmpRT2);
+
+
+            _tmpOGColId = Shader.PropertyToID("tmpOGColId");
+            cmd.GetTemporaryRT(_tmpOGColId, width, height, 0, FilterMode.Bilinear, RenderTextureFormat.ARGB32);
+            _tmpOGColRT = new RenderTargetIdentifier(_tmpOGColId);
+            ConfigureTarget(_tmpOGColRT);
         }
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
+            // Create an RTHandle with the same descriptor as the camera target
+            RTHandle rtHandle = RTHandles.Alloc(renderingData.cameraData.cameraTargetDescriptor);
+
+            // Get the RenderTexture from the RTHandle
+            RenderTexture renderTexture = rtHandle.rt;
+
+            // Set the RenderTexture to the material texture slot
+            BlitMaterial.SetTexture("_RTex", renderTexture);
+
+
             RenderTextureDescriptor opaqueDesc = renderingData.cameraData.cameraTargetDescriptor;
             opaqueDesc.depthBufferBits = 0;
 
             CommandBuffer cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, _profilingSampler))
-            {
+            {             
                 // first pass
                 cmd.SetGlobalFloat("_offset", 1.5f);
-                cmd.Blit(_blurSourceIdentifier, _tmpRT1, BlurMaterial);
+              
+
+               cmd.Blit(_blurSourceIdentifier, _tmpRT1, BlurMaterial);
 
                 for (var i = 1; i < Passes - 1; i++)
                 {
@@ -138,12 +165,14 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
                 // final pass
                 cmd.SetGlobalFloat("_offset", 0.5f + Passes - 1f);
                 cmd.Blit(_tmpRT1, renderingData.cameraData.renderer.cameraColorTarget, BlitMaterial);
+               // cmd.Blit(renderingData.cameraData.renderer.cameraColorTarget, renderingData.cameraData.renderer.cameraColorTarget);
             }
 
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
 
             CommandBufferPool.Release(cmd);
+            rtHandle.Release();
         }
 
         public override void OnCameraCleanup(CommandBuffer cmd)
