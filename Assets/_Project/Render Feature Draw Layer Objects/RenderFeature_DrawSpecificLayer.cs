@@ -20,13 +20,8 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
         // Mat that we are going to blit the current camera texture to
         private Material mat;
-        private Material blitmat;
-        // Ref to current camera texture. 
-        private RTHandle colorBuffer;
         // Temp RT texture to blit too
-        private RTHandle altRendBuffer;
-
-        private RTHandle tempColBuffer;
+        private RTHandle tempRTHandle;
 
         readonly List<ShaderTagId> _shaderTagIds = new List<ShaderTagId>();
         FilteringSettings _filteringSettings;
@@ -39,8 +34,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             renderPassEvent = passSettings.renderPassEvent;
 
             // Now that this is verified within the Renderer Feature, it's already "trusted" here
-            mat = passSettings.material;
-            blitmat = passSettings.blitMat;
+            mat = passSettings.combineMat;
 
             _filteringSettings = new FilteringSettings(RenderQueueRange.opaque, settings._layerMask);
             // TODO Not sure what these are used for
@@ -63,31 +57,15 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             descriptor.depthBufferBits = 0; // Color and depth cannot be combined in RTHandles
             descriptor.colorFormat = RenderTextureFormat.ARGB32;
 
-            // Enable these if your pass requires access to the CameraDepthTexture or the CameraNormalsTexture
-            // ConfigureInput(ScriptableRenderPassInput.Depth);
-            // ConfigureInput(ScriptableRenderPassInput.Normal);
 
-            //colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
+            RenderingUtils.ReAllocateIfNeeded(ref tempRTHandle, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");        }
 
-            RenderingUtils.ReAllocateIfNeeded(ref altRendBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");
-            //RenderingUtils.ReAllocateIfNeeded(ref tempColBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryColBuffer");
-            
-
-            //ConfigureClear(ClearFlag.Color, Color.clear);
-        }
-
-
-        // Here you can implement the rendering logic.
-        // Use <c>ScriptableRenderContext</c> to issue drawing commands or execute command buffers
-        // https://docs.unity3d.com/ScriptReference/Rendering.ScriptableRenderContext.html
-        // You don't have to call ScriptableRenderContext.submit, the render pipeline will call it at specific points in the pipeline.
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             // A reasonably common and simple safety net
             if (mat == null)
-            {
                 return;
-            }
+            
 
             SortingCriteria sortingCriteria = SortingCriteria.CommonOpaque;
             DrawingSettings drawingSettings = CreateDrawingSettings(_shaderTagIds, ref renderingData, sortingCriteria);
@@ -98,33 +76,15 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
             using (new ProfilingScope(cmd, new ProfilingSampler(profilerTag)))
             {
-                //// Copy original colour buffer to tempColBuffer
-                //cmd.SetRenderTarget(tempColBuffer.nameID);               
-                //cmd.ClearRenderTarget(true, true, Color.blue);
-                //Blit(cmd, colorBuffer, tempColBuffer, blitmat);
-                //mat.SetTexture("_RTex", tempColBuffer);
-                //context.ExecuteCommandBuffer(cmd);
-
-
-                cmd.SetRenderTarget(altRendBuffer);// renderingData.cameraData.renderer.cameraColorTargetHandle);
+                cmd.SetRenderTarget(tempRTHandle);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
                 context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings, ref _renderStateBlock);
 
 
-                //cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
-                // cmd.Blit(tempColBuffer, altRendBuffer, mat);
-
                 mat.SetTexture("_RTex", renderingData.cameraData.renderer.cameraColorTargetHandle);
                 cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
-                cmd.Blit(altRendBuffer, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);
-                //context.ExecuteCommandBuffer(cmd);
-                //cmd.Clear();
-                // context.ExecuteCommandBuffer(cmd);
-                // Write to our temp buffer using our mat then write back to the camer col buffer
-                // Blit(cmd, colorBuffer, tempBuffer, mat, 0); // shader pass 0
-                // Blit(cmd, tempBuffer, colorBuffer); // shader pass 1
-
+                cmd.Blit(tempRTHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);
             }           
 
             // Execute the command buffer and release it
@@ -139,18 +99,14 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             {
                 throw new System.ArgumentNullException("cmd");
             }
-
-            // Mentioned in the "Upgrade Guide" but pretty much only seen in "official" examples
-            // in "DepthNormalOnlyPass"
-            // https://github.com/Unity-Technologies/Graphics/blob/9ff23b60470c39020d8d474547bc0e01dde1d9e1/Packages/com.unity.render-pipelines.universal/Runtime/Passes/DepthNormalOnlyPass.cs
-            colorBuffer = null;
+           
+            tempRTHandle = null;
         }
 
         public void Dispose()
         {
             // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
-            altRendBuffer?.Release();
-            //tempColBuffer?.Release();
+            tempRTHandle?.Release();
         }
     }
 
@@ -159,8 +115,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
     [System.Serializable]
     public class PassSettings
     {
-        public Material material;
-        public Material blitMat;
+        public Material combineMat;
         public RenderPassEvent renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
         public LayerMask _layerMask;
     }
@@ -176,9 +131,9 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
     /// <inheritdoc/>
     public override void Create()
     {
-        if (passSettings.material == null)
+        if (passSettings.combineMat == null)
         {
-            passSettings.material = CoreUtils.CreateEngineMaterial("RenderFeature/Desaturate");
+            passSettings.combineMat = CoreUtils.CreateEngineMaterial("RenderFeature/Combine");
             useDynamicTexture = true;
         }
 
@@ -204,7 +159,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         {
             // Added this line to match convention for cleaning up materials
             // ... But only for a dynamically-generated material
-            CoreUtils.Destroy(passSettings.material);
+            CoreUtils.Destroy(passSettings.combineMat);
         }
         renderPass.Dispose();
     }
