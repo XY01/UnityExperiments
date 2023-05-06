@@ -12,82 +12,9 @@ using ProfilingScope = UnityEngine.Rendering.ProfilingScope;
 /// </summary>
 public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 {
-
-
-    /// <summary>
-    /// Renders objects to a specific render target ID
-    /// </summary>
-    class RenderObjectsPass : ScriptableRenderPass
+    class RenderObjectsOnLayerPass : ScriptableRenderPass
     {
-        readonly int _renderTargetId;
-        readonly ProfilingSampler _profilingSampler;
-        readonly List<ShaderTagId> _shaderTagIds = new List<ShaderTagId>();
-
-        RenderTargetIdentifier _renderTargetIdentifier;
-        FilteringSettings _filteringSettings;
-        RenderStateBlock _renderStateBlock;
-
-        Material blitMat;
-        RTHandle objLayerRT;
-
-        public RenderObjectsPass(string profilerTag, int renderTargetId, LayerMask layerMask, Material blitMat)
-        {
-            _profilingSampler = new ProfilingSampler(profilerTag);
-            _renderTargetId = renderTargetId;
-
-            _filteringSettings = new FilteringSettings(null, layerMask);
-
-            // TODO Not sure what these are used for
-            _shaderTagIds.Add(new ShaderTagId("SRPDefaultUnlit"));
-            _shaderTagIds.Add(new ShaderTagId("UniversalForward"));
-            _shaderTagIds.Add(new ShaderTagId("UniversalForwardOnly"));
-            _shaderTagIds.Add(new ShaderTagId("LightweightForward"));
-
-            _renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-
-            this.blitMat = blitMat;
-        }
-
-        public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-        {
-            RenderTextureDescriptor blitTargetDescriptor = renderingData.cameraData.cameraTargetDescriptor;
-            blitTargetDescriptor.colorFormat = RenderTextureFormat.ARGB32;
-          
-            RenderingUtils.ReAllocateIfNeeded(ref objLayerRT, Vector2.one, blitTargetDescriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");
-            //ConfigureTarget(_renderTargetIdentifier);//, renderingData.cameraData.renderer.cameraDepthTarget);
-            //ConfigureClear(ClearFlag.Color, Color.blue);
-        }
-
-        public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
-        {
-            SortingCriteria sortingCriteria = SortingCriteria.CommonOpaque;
-            DrawingSettings drawingSettings = CreateDrawingSettings(_shaderTagIds, ref renderingData, sortingCriteria);
-
-            CommandBuffer cmd = CommandBufferPool.Get();
-            using (new UnityEngine.Rendering.ProfilingScope(cmd, _profilingSampler))
-            {
-                cmd.SetRenderTarget(objLayerRT);
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
-                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings,
-                    ref _renderStateBlock);              
-            }
-
-            context.ExecuteCommandBuffer(cmd);
-            cmd.Clear();
-            CommandBufferPool.Release(cmd);
-        }
-
-        public void Dispose()
-        {
-            // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
-            objLayerRT?.Release();
-        }
-    }
-
-    class CustomRenderPass : ScriptableRenderPass
-    {
-        const string profilerTag = "Material Blit Pass";
+        const string profilerTag = "Render Objects On Layer Pass";
 
         PassSettings passSettings;
 
@@ -106,7 +33,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         RenderStateBlock _renderStateBlock;
 
         // Constructor
-        public CustomRenderPass(PassSettings settings)
+        public RenderObjectsOnLayerPass(PassSettings settings)
         {
             this.passSettings = settings;
             renderPassEvent = passSettings.renderPassEvent;
@@ -134,15 +61,16 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         {
             RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
             descriptor.depthBufferBits = 0; // Color and depth cannot be combined in RTHandles
+            descriptor.colorFormat = RenderTextureFormat.ARGB32;
 
             // Enable these if your pass requires access to the CameraDepthTexture or the CameraNormalsTexture
             // ConfigureInput(ScriptableRenderPassInput.Depth);
             // ConfigureInput(ScriptableRenderPassInput.Normal);
 
-            colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
+            //colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
 
             RenderingUtils.ReAllocateIfNeeded(ref altRendBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");
-            RenderingUtils.ReAllocateIfNeeded(ref tempColBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryColBuffer");
+            //RenderingUtils.ReAllocateIfNeeded(ref tempColBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryColBuffer");
             
 
             //ConfigureClear(ClearFlag.Color, Color.clear);
@@ -187,11 +115,11 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
                 //cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
                 // cmd.Blit(tempColBuffer, altRendBuffer, mat);
 
-                mat.SetTexture("_RTex", altRendBuffer);
+                mat.SetTexture("_RTex", renderingData.cameraData.renderer.cameraColorTargetHandle);
                 cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
-                cmd.Blit(renderingData.cameraData.renderer.cameraColorTargetHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
+                cmd.Blit(altRendBuffer, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);
+                //context.ExecuteCommandBuffer(cmd);
+                //cmd.Clear();
                 // context.ExecuteCommandBuffer(cmd);
                 // Write to our temp buffer using our mat then write back to the camer col buffer
                 // Blit(cmd, colorBuffer, tempBuffer, mat, 0); // shader pass 0
@@ -222,7 +150,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         {
             // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
             altRendBuffer?.Release();
-            tempColBuffer?.Release();
+            //tempColBuffer?.Release();
         }
     }
 
@@ -237,8 +165,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         public LayerMask _layerMask;
     }
 
-    CustomRenderPass renderPass;
-    RenderObjectsPass renderObjPass;
+    RenderObjectsOnLayerPass renderPass;
     public PassSettings passSettings = new PassSettings();
 
     // This prevents attempted destruction of a manually-assigned material later
@@ -255,7 +182,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             useDynamicTexture = true;
         }
 
-        this.renderPass = new CustomRenderPass(passSettings);
+        this.renderPass = new RenderObjectsOnLayerPass(passSettings);
 
         // Setup Render Object Pass
        // int renderObjId = Shader.PropertyToID(_renderObjectId);
