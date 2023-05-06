@@ -52,8 +52,7 @@ public class RenderScreenSpaceMetaballs : ScriptableRendererFeature
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
             SortingCriteria sortingCriteria = SortingCriteria.CommonOpaque;
-            DrawingSettings drawingSettings =
-                CreateDrawingSettings(_shaderTagIds, ref renderingData, sortingCriteria);
+            DrawingSettings drawingSettings = CreateDrawingSettings(_shaderTagIds, ref renderingData, sortingCriteria);
 
             CommandBuffer cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, _profilingSampler))
