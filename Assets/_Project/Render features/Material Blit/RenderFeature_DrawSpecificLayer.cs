@@ -18,10 +18,11 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
         // Mat that we are going to blit the current camera texture to
         private Material mat;
+        private Material blitmat;
         // Ref to current camera texture. 
         private RTHandle colorBuffer;
         // Temp RT texture to blit too
-        private RTHandle tempBuffer;
+        private RTHandle altRendBuffer;
 
         private RTHandle tempColBuffer;
 
@@ -37,7 +38,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
             // Now that this is verified within the Renderer Feature, it's already "trusted" here
             mat = passSettings.material;
-
+            blitmat = passSettings.blitMat;
 
             _filteringSettings = new FilteringSettings(RenderQueueRange.opaque, settings._layerMask);
             // TODO Not sure what these are used for
@@ -65,7 +66,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
             colorBuffer = renderingData.cameraData.renderer.cameraColorTargetHandle;
 
-            RenderingUtils.ReAllocateIfNeeded(ref tempBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");
+            RenderingUtils.ReAllocateIfNeeded(ref altRendBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");
             RenderingUtils.ReAllocateIfNeeded(ref tempColBuffer, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryColBuffer");
             
 
@@ -93,18 +94,28 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
             using (new ProfilingScope(cmd, new ProfilingSampler(profilerTag)))
             {
+                // Copy original colour buffer to tempColBuffer
                 cmd.SetRenderTarget(tempColBuffer.nameID);
-                Blit(cmd, colorBuffer, tempColBuffer);
+               
+                cmd.ClearRenderTarget(true, true, Color.blue);
+                Blit(cmd, colorBuffer, tempColBuffer, blitmat);
                 mat.SetTexture("_RTex", tempColBuffer);
+                context.ExecuteCommandBuffer(cmd);
 
 
-                cmd.SetRenderTarget(colorBuffer);// renderingData.cameraData.renderer.cameraColorTargetHandle);
-                cmd.ClearRenderTarget(true, true, Color.yellow);
-                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings,
-                    ref _renderStateBlock);
+                cmd.SetRenderTarget(altRendBuffer);// renderingData.cameraData.renderer.cameraColorTargetHandle);
+               // context.ExecuteCommandBuffer(cmd);
+                cmd.ClearRenderTarget(true, true, Color.green);
+                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings, ref _renderStateBlock);
+                context.ExecuteCommandBuffer(cmd);
 
-                cmd.Blit(tempColBuffer, colorBuffer, mat);
+                //cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
+               // cmd.Blit(tempColBuffer, altRendBuffer, mat);
 
+
+                cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
+                cmd.Blit(altRendBuffer, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);
+               // context.ExecuteCommandBuffer(cmd);
                 // Write to our temp buffer using our mat then write back to the camer col buffer
                 // Blit(cmd, colorBuffer, tempBuffer, mat, 0); // shader pass 0
                 // Blit(cmd, tempBuffer, colorBuffer); // shader pass 1
@@ -133,7 +144,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         public void Dispose()
         {
             // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
-            tempBuffer?.Release();
+            altRendBuffer?.Release();
             tempColBuffer?.Release();
         }
     }
@@ -144,6 +155,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
     public class PassSettings
     {
         public Material material;
+        public Material blitMat;
         public RenderPassEvent renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
         public LayerMask _layerMask;
     }

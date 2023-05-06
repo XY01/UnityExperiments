@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: RenderFeature_Desaturate
+  m_Name: RenderFeature_SHowRenderOutputs
   m_Shader: {fileID: 4800000, guid: cbb5da52ff84e4544ba146599590b8a3, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -39,8 +39,9 @@ Material:
     m_Floats:
     - _AlphaCutoff: 0.5
     - _Float1: 98.88
-    - _Step: 0.169
+    - _ScaleBaseCol: 0.19
+    - _Step: 0.282
     m_Colors:
-    - _Color0: {r: 0.5962665, g: 0.6037736, b: 0.56105375, a: 1}
+    - _Color0: {r: 1, g: 1, b: 1, a: 1}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []
