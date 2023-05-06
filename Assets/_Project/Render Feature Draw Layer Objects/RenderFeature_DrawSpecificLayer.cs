@@ -44,6 +44,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             _shaderTagIds.Add(new ShaderTagId("LightweightForward"));
 
             _renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
+           // _renderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
         }
 
         // This method is called before executing the render pass.
@@ -56,7 +57,6 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
             descriptor.depthBufferBits = 0; // Color and depth cannot be combined in RTHandles
             descriptor.colorFormat = RenderTextureFormat.ARGB32;
-
 
             RenderingUtils.ReAllocateIfNeeded(ref tempRTHandle, Vector2.one, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TemporaryBuffer");        }
 
@@ -76,7 +76,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
 
             using (new ProfilingScope(cmd, new ProfilingSampler(profilerTag)))
             {
-                cmd.SetRenderTarget(tempRTHandle);
+                cmd.SetRenderTarget(tempRTHandle.nameID, renderingData.cameraData.renderer.cameraDepthTargetHandle.nameID);
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
                 context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings, ref _renderStateBlock);
@@ -85,21 +85,19 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
                 mat.SetTexture("_RTex", renderingData.cameraData.renderer.cameraColorTargetHandle);
                 cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
                 cmd.Blit(tempRTHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);
+                
             }           
 
             // Execute the command buffer and release it
             context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
 
         // Cleanup any allocated resources that were created during the execution of this render pass.
         public override void OnCameraCleanup(CommandBuffer cmd)
         {
-            if (cmd == null)
-            {
-                throw new System.ArgumentNullException("cmd");
-            }
-           
+            tempRTHandle.Release();
             tempRTHandle = null;
         }
 
