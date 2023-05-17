@@ -29,10 +29,15 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
+    - _Alpha: 1.5
     - _AlphaCutoff: 0.5
+    - _FlameYStretch: 0.34
+    - _Float0: 1
     - _HeatHieghtGrad: 0.21
+    - _LocalWindSpeed: 1.56
     - _NoiseScale: 18.6
-    - _NoiseScale0: 6.7
+    - _NoiseScale0: 5.2
+    - _Noisescale0: 4
     - _xoffset: -1
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
