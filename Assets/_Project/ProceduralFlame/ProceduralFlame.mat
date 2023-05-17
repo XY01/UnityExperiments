@@ -27,17 +27,50 @@ Material:
         m_Texture: {fileID: 2800000, guid: 40056aaddefd2534d9b4e108240d9852, type: 3}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
+    - _Texture0:
+        m_Texture: {fileID: 2800000, guid: fcbb22463ab66e3409012b2ef95a3ff0, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _TextureSample0:
+        m_Texture: {fileID: 2800000, guid: fcbb22463ab66e3409012b2ef95a3ff0, type: 2}
+        m_Scale: {x: 1, y: 0.4}
+        m_Offset: {x: 0, y: -1.44}
+    - _TextureSample1:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _texcoord:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Alpha: 1.57
+    - _Alpha: 3
     - _AlphaCutoff: 0.5
-    - _FlameYStretch: 0.34
-    - _Float0: 1
-    - _HeatHieghtGrad: 0.21
-    - _LocalWindSpeed: 1
+    - _BaseNoiseStrength: 3.54
+    - _FlameYStretch: 0.7
+    - _Float0: -71.3
+    - _FreqHigh: 0.89
+    - _FreqLow: 0.513
+    - _HeatHieghtGrad: 0
+    - _LocalWindSpeed: 0.84
+    - _NoiseGradientExponent: 0.5
+    - _NoiseHighFreqExp: 2.61
+    - _NoiseHighFreqStr: 1.04
+    - _NoiseLowFreqExp: 2.58
+    - _NoiseLowFreqStr: 1.29
     - _NoiseScale: 18.6
     - _NoiseScale0: 5.2
-    - _Noisescale0: 4
+    - _NoiseStr0: 3.11
+    - _NoiseStr1: 1
+    - _NoiseStr2: 1
+    - _NoiseStr2aaaaaaaaaaaaaaaaam: 2
+    - _Noisescale0: 1
+    - _ScaledFreqLerp: 0.975
+    - _Stretch: 0.7
+    - _TexNoise: 1.04
+    - _TexNoise2: 1.27
+    - _TimeInput: 181.4
     - _xoffset: -1
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
