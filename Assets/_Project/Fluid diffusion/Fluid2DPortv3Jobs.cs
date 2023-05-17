@@ -12,6 +12,7 @@ using Color = UnityEngine.Color;
 using Random = UnityEngine.Random;
 using Unity.Mathematics;
 using Newtonsoft.Json.Linq;
+using UnityEngine.Profiling;
 
 
 // REFS
@@ -66,32 +67,7 @@ public class Fluid2DPortv3Jobs : MonoBehaviour
     // Start is called before the first frame update
     void Start()
     {
-        //for (int x = 0; x < dimensions; x++)
-        //{
-        //    for (int y = 0; y < dimensions; y++)
-        //    {
-        //        float xNorm = x / (float)dimensions;
-        //        xNorm = 1 -  Mathf.Abs(.5f - xNorm) * 2;
-        //        float yNorm = y / (float)dimensions;
-        //        yNorm = 1 -  Mathf.Abs(.5f - yNorm) * 2;
-
-        //        if (x == 0 || x == dimensions - 1 ||
-        //            y == 0 || y == dimensions - 1)
-        //        {
-        //            density[Index(x,y)] = 0;
-        //            density0[Index(x,y)] = 0;
-        //        }
-        //        else
-        //        {
-        //            density[Index(x,y)] = xNorm * yNorm;
-        //            density0[Index(x,y)] = xNorm * yNorm;
-        //        }
-        //    }
-        //}
-
-        // FILL ARRAY JOB
-        //
-        // Create job and init vars
+        // -- Create  Arrays             
         density = new NativeArray<float>(dimensions * dimensions, Allocator.Persistent);
         density0 = new NativeArray<float>(dimensions * dimensions, Allocator.Persistent);
         velX = new NativeArray<float>(dimensions * dimensions, Allocator.Persistent);
@@ -99,16 +75,15 @@ public class Fluid2DPortv3Jobs : MonoBehaviour
         velY = new NativeArray<float>(dimensions * dimensions, Allocator.Persistent);
         velY0 = new NativeArray<float>(dimensions * dimensions, Allocator.Persistent);
 
+        // -- Fill Arrays
         FillArrayJob fillArrayJob = new FillArrayJob();
         fillArrayJob.densityArray = density;
         fillArrayJob.resolution = dimensions;
         // Schedule
         JobHandle jobHandle = fillArrayJob.Schedule(density.Length, 1);
-
         // Complete and cleanup
         jobHandle.Complete();
       
-
         for (int i = 0; i < density.Length; i++)
         {
             density[i] = density[i];
@@ -130,6 +105,7 @@ public class Fluid2DPortv3Jobs : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        Profiler.BeginSample("0.0");
         #region MOUSE INTERACTION        
         Vector3 screenPoint = Input.mousePosition;
         screenPoint.z = -Camera.main.transform.position.z; //distance of the plane from the camera
@@ -140,7 +116,7 @@ public class Fluid2DPortv3Jobs : MonoBehaviour
         mouseVel = Vector3.Lerp(mouseVel, newMouseVel, Time.deltaTime * 8);
         prevMousePos = mousePos;
         #endregion
-
+       
 
         if (Input.GetMouseButton(0))
         {
@@ -159,38 +135,37 @@ public class Fluid2DPortv3Jobs : MonoBehaviour
                 }
             }
         }
+        Profiler.EndSample();
 
-        //VelocityUpdate();
+
+        Profiler.BeginSample("0.1");
+        VelocityUpdate();
+        Profiler.EndSample();
+
+        Profiler.BeginSample("0.2");
         DensityUpdate();
+        Profiler.EndSample();
 
-        //for (int x = 1; x < dimensions - 1; x++)
-        //{
-        //    for (int y = 1; y < dimensions - 1; y++)
-        //    {
-        //        int index = Index(x, y);
-        //        density[index] -= densityDissipationRate * Time.deltaTime;
-        //        density[index] = Mathf.Max(density[index], 0);
-        //    }
-        //}
+        Profiler.BeginSample("0.3");
+        for (int x = 1; x < dimensions - 1; x++)
+        {
+            for (int y = 1; y < dimensions - 1; y++)
+            {
+                int index = Index(x, y);
+                density[index] -= densityDissipationRate * Time.deltaTime;
+                density[index] = Mathf.Max(density[index], 0);
+            }
+        }
+        Profiler.EndSample();
 
         if (Input.GetKey(KeyCode.R))
             Reset();
     }
 
 
-    // JOBS
+    //---- JOBS
     //
-    struct FillArrayJob : IJobParallelFor
-    {
-        public NativeArray<float> densityArray;
-        public float resolution;
-
-        public void Execute(int index)
-        {
-            float fillAmount = (index % resolution) / resolution;
-            densityArray[index] = fillAmount;
-        }
-    }
+  
 
 
     void DensityUpdate()
@@ -304,6 +279,19 @@ public class Fluid2DPortv3Jobs : MonoBehaviour
         JobHandle jobHandle = advectJob.Schedule(density.Length, 1);
         jobHandle.Complete();
         set_bnd(dimensions, boundaryMode, density);
+    }
+
+    // Fills array with a agradient across x
+    struct FillArrayJob : IJobParallelFor
+    {
+        public NativeArray<float> densityArray;
+        public float resolution;
+
+        public void Execute(int index)
+        {
+            float fillAmount = (index % resolution) / resolution;
+            densityArray[index] = fillAmount;
+        }
     }
 
     struct AdvectJob : IJobParallelFor

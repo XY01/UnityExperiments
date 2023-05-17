@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Drawing;
 using Unity.VisualScripting;
 using UnityEngine;
+using UnityEngine.Profiling;
 using UnityEngine.Rendering.Universal;
 using static UnityEngine.Rendering.VolumeComponent;
 using Color = UnityEngine.Color;
@@ -86,6 +87,7 @@ public class Fluid2DPortv2 : MonoBehaviour
     // Update is called once per frame
     void Update()
     {
+        Profiler.BeginSample("0.0");
         #region MOUSE INTERACTION        
         Vector3 screenPoint = Input.mousePosition;
         screenPoint.z = -Camera.main.transform.position.z; //distance of the plane from the camera
@@ -115,10 +117,19 @@ public class Fluid2DPortv2 : MonoBehaviour
                 }
             }
         }
+        Profiler.EndSample();
 
+        Profiler.BeginSample("0.1"); // Profiling - ~4ms 64x64 grid
         VelocityUpdate();
-        DensityUpdate();
+        //VelocityUpdatev2();
+        Profiler.EndSample();
 
+        Profiler.BeginSample("0.2");
+        DensityUpdate();
+        Profiler.EndSample();
+
+
+        Profiler.BeginSample("0.3");
         for (int x = 1; x < dimensions - 1; x++)
         {
             for (int y = 1; y < dimensions - 1; y++)
@@ -128,6 +139,7 @@ public class Fluid2DPortv2 : MonoBehaviour
                 density[index] = Mathf.Max(density[index], 0);
             }
         }
+        Profiler.EndSample();
 
         if (Input.GetKey(KeyCode.R))
             Reset();
@@ -153,6 +165,30 @@ public class Fluid2DPortv2 : MonoBehaviour
         advect(dimensions, boundaryMode: 1, velX, velX0, velX0, velY0, Time.fixedDeltaTime);
         advect(dimensions, boundaryMode: 2, velY, velY0, velX0, velY0, Time.fixedDeltaTime);
         project(dimensions, velX, velY, velX0, velY0);
+    }
+
+    bool altArray = false;
+    void VelocityUpdatev2()
+    {
+        if (altArray)
+        {          
+            diffuse(dimensions, 1, velX, velX0, viscosity, Time.fixedDeltaTime);          
+            diffuse(dimensions, 2, velY, velY0, viscosity, Time.fixedDeltaTime);
+            project(dimensions, velX, velY, velX0, velY0);       
+            advect(dimensions, boundaryMode: 1, velX, velX0, velX0, velY0, Time.fixedDeltaTime);
+            advect(dimensions, boundaryMode: 2, velY, velY0, velX0, velY0, Time.fixedDeltaTime);
+            project(dimensions, velX, velY, velX0, velY0);
+        }
+        else
+        {
+            diffuse(dimensions, 1, velX0, velX, viscosity, Time.fixedDeltaTime);          
+            diffuse(dimensions, 2, velY0, velY, viscosity, Time.fixedDeltaTime);
+            project(dimensions, velX0, velY0, velX, velY);          
+            advect(dimensions, boundaryMode: 1, velX0, velX, velX, velY, Time.fixedDeltaTime);
+            advect(dimensions, boundaryMode: 2, velY0, velY, velX, velY, Time.fixedDeltaTime);
+            project(dimensions, velX0, velY0, velX, velY);
+        }
+        altArray = !altArray;
     }
 
     void diffuse(int dimensions, int boundaryMode, float[] toArray, float[] fromArray, float diff, float dt)
