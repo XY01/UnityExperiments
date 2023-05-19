@@ -1,0 +1,41 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 78b2425a2284af743826c689403a4924, type: 3}
+  m_Name: ObjectScaledScrollingUV
+  m_EditorClassIdentifier: 
+  m_functionInfo: "// Made with Amplify Shader Editor\n// Available at the Unity
+    Asset Store - http://u3d.as/y3X \n/*ASEBEGIN\nVersion=18935\n557;73;1046;756;1313.194;141.2417;1;True;False\nNode;AmplifyShaderEditor.TextureCoordinatesNode;5;-306.8438,-14.681;Inherit;False;0;-1;2;3;2;SAMPLER2D;;False;0;FLOAT2;1,1;False;1;FLOAT2;0,0;False;5;FLOAT2;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4\nNode;AmplifyShaderEditor.DynamicAppendNode;3;-457.6887,64.0801;Inherit;False;FLOAT2;4;0;FLOAT;-0.5;False;1;FLOAT;0;False;2;FLOAT;0;False;3;FLOAT;0;False;1;FLOAT2;0\nNode;AmplifyShaderEditor.FunctionInput;7;-978.3124,-252.3752;Inherit;False;ObjectXScalar;1;1;False;1;0;FLOAT;1;False;1;FLOAT;0\nNode;AmplifyShaderEditor.ObjectScaleNode;4;-970.1939,-168.5825;Inherit;False;False;0;4;FLOAT3;0;FLOAT;1;FLOAT;2;FLOAT;3\nNode;AmplifyShaderEditor.SimpleMultiplyOpNode;9;-780.5135,-195.9542;Inherit;False;2;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0\nNode;AmplifyShaderEditor.SimpleMultiplyOpNode;10;-768.5135,-85.95419;Inherit;False;2;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0\nNode;AmplifyShaderEditor.FunctionInput;8;-982.5135,-22.95419;Inherit;False;ObjectYScalar;1;2;False;1;0;FLOAT;1;False;1;FLOAT;0\nNode;AmplifyShaderEditor.DynamicAppendNode;11;-635.5135,-156.9542;Inherit;False;FLOAT2;4;0;FLOAT;0;False;1;FLOAT;0;False;2;FLOAT;0;False;3;FLOAT;0;False;1;FLOAT2;0\nNode;AmplifyShaderEditor.PosFromTransformMatrix;17;-1046.833,248.342;Inherit;False;1;0;FLOAT4x4;1,0,0,0,0,1,0,0,0,0,1,0,0,0,0,1;False;5;FLOAT4;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4\nNode;AmplifyShaderEditor.FunctionInput;6;-1032.989,146.1669;Inherit;False;VScrollSpeed;1;0;False;1;0;FLOAT;1;False;1;FLOAT;0\nNode;AmplifyShaderEditor.SimpleAddOpNode;16;-639.8329,156.342;Inherit;False;2;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0\nNode;AmplifyShaderEditor.SimpleAddOpNode;18;-854.8329,252.342;Inherit;False;2;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0\nNode;AmplifyShaderEditor.ObjectToWorldMatrixNode;20;-1229.833,251.342;Inherit;False;0;1;FLOAT4x4;0\nNode;AmplifyShaderEditor.SimpleTimeNode;15;-862.8329,150.342;Inherit;False;1;0;FLOAT;1;False;1;FLOAT;0\nNode;AmplifyShaderEditor.SimpleMultiplyOpNode;19;-741.8329,257.342;Inherit;False;2;2;0;FLOAT;0;False;1;FLOAT;3.27;False;1;FLOAT;0\nNode;AmplifyShaderEditor.FunctionOutput;0;0,-1.171689;Inherit;False;True;-1;UV;0;False;1;0;FLOAT2;0,0;False;1;FLOAT2;0\nWireConnection;5;0;11;0\nWireConnection;5;1;3;0\nWireConnection;3;0;19;0\nWireConnection;3;1;16;0\nWireConnection;9;0;7;0\nWireConnection;9;1;4;1\nWireConnection;10;0;4;2\nWireConnection;10;1;8;0\nWireConnection;11;0;9;0\nWireConnection;11;1;10;0\nWireConnection;17;0;20;0\nWireConnection;16;0;15;0\nWireConnection;16;1;19;0\nWireConnection;18;0;17;1\nWireConnection;18;1;17;2\nWireConnection;15;0;6;0\nWireConnection;19;0;18;0\nWireConnection;0;0;5;0\nASEEND*/\n//CHKSM=B70D4C3A94EF37139909F6559133C7545260F371"
+  m_functionName: 
+  m_description: 
+  m_additionalIncludes:
+    m_additionalIncludes: []
+    m_outsideIncludes: []
+  m_additionalPragmas:
+    m_additionalPragmas: []
+    m_outsidePragmas: []
+  m_additionalDirectives:
+    m_validData: 0
+    m_isDirty: 0
+    m_moduleName: ' Additional Directives'
+    m_independentModule: 1
+    m_customEdited: 0
+    m_additionalDirectives: []
+    m_shaderFunctionDirectives: []
+    m_nativeDirectives: []
+    m_nativeDirectivesIndex: -1
+    m_nativeDirectivesFoldout: 0
+    m_directivesSaveItems: []
+  m_nodeCategory: 3
+  m_customNodeCategory: 
+  m_previewPosition: 0
+  m_hidden: 0
+  m_url: 

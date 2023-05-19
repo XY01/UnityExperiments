@@ -14,7 +14,7 @@ Material:
   m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
-  m_EnableInstancingVariants: 0
+  m_EnableInstancingVariants: 1
   m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
@@ -50,15 +50,32 @@ Material:
     - _BaseNoiseStrength: 3.54
     - _FlameYStretch: 0.7
     - _Float0: -71.3
+    - _Float3: 1
+    - _Float4: 0
     - _FreqHigh: 0.966
     - _FreqLow: 1.112
+    - _HFScrollSpeed: -1
     - _HeatHieghtGrad: 0
+    - _HighFExp: 1.92
+    - _HighFScrollSpeed: -3
+    - _HighFStr: 0.25
+    - _HighFUTiling: 2.27
+    - _HighFVTiling: 1.25
+    - _LFScrollSpeed: -1
+    - _LFXTiling: 0.5
+    - _LFYTiling: 0.4
     - _LocalWindSpeed: 0.85
+    - _LowFExp: 8.5
+    - _LowFScrollSpeed: -0.5
+    - _LowFStr: 0.25
+    - _LowFUTiling: 0.98
+    - _LowFVTiling: 0.3
+    - _MasterSpeedScalar: 0.25
     - _NoiseGradientExponent: 0.5
     - _NoiseHighFreqExp: 1
-    - _NoiseHighFreqStr: 0.441
-    - _NoiseLowFreqExp: 1
-    - _NoiseLowFreqStr: 0.884
+    - _NoiseHighFreqStr: 0
+    - _NoiseLowFreqExp: 4
+    - _NoiseLowFreqStr: 0
     - _NoiseScale: 18.6
     - _NoiseScale0: 5.2
     - _NoiseStr0: 3.11
