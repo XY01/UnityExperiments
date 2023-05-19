@@ -1,5 +1,21 @@
 %YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-2712512961987035580
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 24b2ce95f334bd34db4c28fb69031048, type: 3}
+  m_Name: RenderFeatureMaterialBlit
+  m_EditorClassIdentifier: 
+  m_Active: 0
+  passSettings:
+    material: {fileID: 2100000, guid: a68cf4d297ba66b459435efb1e57fb17, type: 2}
+    renderPassEvent: 500
 --- !u!114 &-1878332245247344467
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -12,7 +28,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: f62c9c65cf3354c93be831c8bc075510, type: 3}
   m_Name: SSAO
   m_EditorClassIdentifier: 
-  m_Active: 1
+  m_Active: 0
   m_Shader: {fileID: 4800000, guid: 0849e84e3d62649e8882e9d6f056a017, type: 3}
   m_Settings:
     Downsample: 0
@@ -40,8 +56,12 @@ MonoBehaviour:
       type: 3}
   m_RendererFeatures:
   - {fileID: -1878332245247344467}
-  m_RendererFeatureMap: adc0de57c6d2eee5
-  m_UseNativeRenderPass: 0
+  - {fileID: -2712512961987035580}
+  - {fileID: 2126314472498694762}
+  - {fileID: 2125387066441127279}
+  - {fileID: 2977455210123253180}
+  m_RendererFeatureMap: adc0de57c6d2eee544be1e24d5375bda6a8a0e3ebf2f821d6fd56eb146e47e1dbc550806bd0b5229
+  m_UseNativeRenderPass: 1
   postProcessData: {fileID: 11400000, guid: 41439944d30ece34e96484bdb6645b55, type: 2}
   xrSystemData: {fileID: 11400000, guid: 60e1133243b97e347b653163a8c01b64, type: 2}
   shaders:
@@ -62,10 +82,10 @@ MonoBehaviour:
   m_AssetVersion: 2
   m_OpaqueLayerMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 55
   m_TransparentLayerMask:
     serializedVersion: 2
-    m_Bits: 4294967295
+    m_Bits: 2147483647
   m_DefaultStencilState:
     overrideStencilState: 0
     stencilReference: 0
@@ -81,3 +101,63 @@ MonoBehaviour:
   m_ClusteredRendering: 0
   m_TileSize: 32
   m_IntermediateTextureMode: 0
+--- !u!114 &2125387066441127279
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 58def28cf03c71b40bcee8530e5ab327, type: 3}
+  m_Name: RenderFeatureDrawSpecificLayer
+  m_EditorClassIdentifier: 
+  m_Active: 0
+  passSettings:
+    combineMat: {fileID: 0}
+    renderPassEvent: 550
+    _layerMask:
+      serializedVersion: 2
+      m_Bits: 64
+--- !u!114 &2126314472498694762
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f1ef6b8c78c1d9e4da85e5b348b5f3e8, type: 3}
+  m_Name: RenderScreenSpaceMetaballs
+  m_EditorClassIdentifier: 
+  m_Active: 0
+  _renderTargetId: _RenderMetaballsRT
+  _layerMask:
+    serializedVersion: 2
+    m_Bits: 64
+  _blurMaterial: {fileID: 2100000, guid: edb79ba6401372d43a130bea6f23488b, type: 2}
+  _blitMaterial: {fileID: 2100000, guid: a68cf4d297ba66b459435efb1e57fb17, type: 2}
+  _blurPasses: 4
+--- !u!114 &2977455210123253180
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: bc02d8ef557e67e4daba107536a0b9fe, type: 3}
+  m_Name: RenderFeatureDrawSpecificLayerWBlur
+  m_EditorClassIdentifier: 
+  m_Active: 0
+  passSettings:
+    combineMat: {fileID: 0}
+    renderPassEvent: 500
+    _layerMask:
+      serializedVersion: 2
+      m_Bits: 64
+    blurMaterial: {fileID: 0}
+    blurPasses: 1
