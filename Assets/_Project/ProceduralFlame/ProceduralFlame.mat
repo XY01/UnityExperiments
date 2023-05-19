@@ -45,7 +45,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Alpha: 1
+    - _Alpha: 1.07
     - _AlphaCutoff: 0.5
     - _BaseNoiseStrength: 3.54
     - _FlameYStretch: 0.7
@@ -66,12 +66,13 @@ Material:
     - _NoiseStr2: 1
     - _NoiseStr2aaaaaaaaaaaaaaaaam: 2
     - _Noisescale0: 1
-    - _ScaledFreqLerp: 0.29
-    - _Stretch: 0.5
+    - _ObjectscaledLerp: 1
+    - _ScaledFreqLerp: 0.47
+    - _Stretch: 0.3
     - _TexNoise: 1.04
     - _TexNoise2: 1.27
     - _TimeInput: 181.4
-    - _VertMaskExp: 8
+    - _VertMaskExp: 1.6
     - _xoffset: -1
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
