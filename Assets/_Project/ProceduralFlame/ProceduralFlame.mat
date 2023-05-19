@@ -53,7 +53,7 @@ Material:
     - _FreqHigh: 0.966
     - _FreqLow: 1.112
     - _HeatHieghtGrad: 0
-    - _LocalWindSpeed: 0.35
+    - _LocalWindSpeed: 0.85
     - _NoiseGradientExponent: 0.5
     - _NoiseHighFreqExp: 1
     - _NoiseHighFreqStr: 0.441
