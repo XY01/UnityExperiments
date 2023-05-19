@@ -9,6 +9,9 @@ public class TformScalar : MonoBehaviour
     public Vector3 maxScale;
     public Vector3 minScale;
 
+    [GradientUsage(true)]
+    public Gradient grad;
+
     // Start is called before the first frame update
     void Start()
     {

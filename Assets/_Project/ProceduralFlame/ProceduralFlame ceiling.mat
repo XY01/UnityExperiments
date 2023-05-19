@@ -45,7 +45,7 @@ Material:
         m_Offset: {x: 0, y: 0}
     m_Ints: []
     m_Floats:
-    - _Alpha: 1.07
+    - _Alpha: 1.63
     - _AlphaCutoff: 0.5
     - _BaseNoiseStrength: 3.54
     - _FlameYStretch: 0.7
@@ -64,13 +64,13 @@ Material:
     - _LFScrollSpeed: -1
     - _LFXTiling: 0.5
     - _LFYTiling: 0.4
-    - _LocalWindSpeed: 0.85
+    - _LocalWindSpeed: 0.65
     - _LowFExp: 3.4
     - _LowFScrollSpeed: -1
     - _LowFStr: 0.57
     - _LowFUTiling: 1
     - _LowFVTiling: 0.5
-    - _MasterSpeedScalar: 1.27
+    - _MasterSpeedScalar: 1.01
     - _NoiseGradientExponent: 0.5
     - _NoiseHighFreqExp: 1
     - _NoiseHighFreqStr: 0
@@ -89,7 +89,7 @@ Material:
     - _TexNoise: 1.04
     - _TexNoise2: 1.27
     - _TimeInput: 181.4
-    - _VertMaskExp: 0.3
+    - _VertMaskExp: 0.6
     - _xoffset: -1
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
