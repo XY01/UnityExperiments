@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: ProceduralFlame
+  m_Name: ProceduralFlame ceiling
   m_Shader: {fileID: 4800000, guid: 9dad6193058f6e4479ea3e38b0cfe118, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -56,21 +56,21 @@ Material:
     - _FreqLow: 1.112
     - _HFScrollSpeed: -1
     - _HeatHieghtGrad: 0
-    - _HighFExp: 1.52
+    - _HighFExp: 3.1
     - _HighFScrollSpeed: -3.2
-    - _HighFStr: 0.25
+    - _HighFStr: 0.48
     - _HighFUTiling: 1.51
     - _HighFVTiling: 1
     - _LFScrollSpeed: -1
     - _LFXTiling: 0.5
     - _LFYTiling: 0.4
     - _LocalWindSpeed: 0.85
-    - _LowFExp: 7.4
+    - _LowFExp: 3.4
     - _LowFScrollSpeed: -1
-    - _LowFStr: 0.16
+    - _LowFStr: 0.57
     - _LowFUTiling: 1
-    - _LowFVTiling: 0.3
-    - _MasterSpeedScalar: 0.73
+    - _LowFVTiling: 0.5
+    - _MasterSpeedScalar: 1.27
     - _NoiseGradientExponent: 0.5
     - _NoiseHighFreqExp: 1
     - _NoiseHighFreqStr: 0
@@ -89,7 +89,7 @@ Material:
     - _TexNoise: 1.04
     - _TexNoise2: 1.27
     - _TimeInput: 181.4
-    - _VertMaskExp: 1.8
+    - _VertMaskExp: 0.3
     - _xoffset: -1
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
