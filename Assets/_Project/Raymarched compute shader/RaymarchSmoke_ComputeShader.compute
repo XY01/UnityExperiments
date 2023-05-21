@@ -1,0 +1,77 @@
+#pragma kernel SphereMarch
+
+// Result texture, sampler and dimensions
+RWTexture3D<float4> Result;
+uint3 ResultDimensions;
+SamplerState sampler_linear_clamp;
+
+// Texture to sample
+Texture3D<float> VolumeTexture;
+
+float3 RayOrigin;
+float3 RayDirection;
+float3 LightDirection;
+
+// Camera ray direction
+float3 CameraPosition;
+float3 CameraForward;
+float3 CameraUp;
+float3 CameraRight;
+float FieldOfView;
+
+
+
+
+[numthreads(8,8,1)]
+void SphereMarch (uint3 id : SV_DispatchThreadID)
+{
+    if (id.x >= ResultDimensions.x || id.y >= ResultDimensions.y || id.z >= ResultDimensions.z)
+        return;
+
+    // Normalize pixel coordinates to [-1, 1]
+    float2 uv = (float2)id.xy / (ResultDimensions.xy * 0.5) - 1.0;
+
+    // Calculate ray direction in camera space
+    float3 direction = float3(uv.x * tan(FieldOfView * 0.5), uv.y * tan(FieldOfView * 0.5), -1);
+
+    // Transform ray direction to world space
+    direction = normalize(direction.x * CameraRight + direction.y * CameraUp + direction.z * CameraForward);
+
+    float3 position = RayOrigin;
+    const int maxSteps = 256;
+    const float maxDistance = 100.0;
+    const float surfaceThreshold = 0.01;
+    const float gradientStep = 0.01;
+
+   
+
+    for (int i = 0; i < maxSteps; ++i)
+    {
+        float distance = VolumeTexture.SampleLevel(sampler_linear_clamp, position, 0);
+        if (distance < surfaceThreshold)
+        {
+            // Calculate gradient for lighting
+            float3 gradient;
+            gradient.x = VolumeTexture.SampleLevel(sampler_linear_clamp, position + float3(gradientStep, 0, 0), 0) - distance;
+            gradient.y = VolumeTexture.SampleLevel(sampler_linear_clamp, position + float3(0, gradientStep, 0), 0) - distance;
+            gradient.z = VolumeTexture.SampleLevel(sampler_linear_clamp, position + float3(0, 0, gradientStep), 0) - distance;
+            gradient = normalize(gradient);
+
+            // Simple diffuse lighting
+            float light = max(0, dot(gradient, -LightDirection));
+
+            Result[id] = float4(light, light, light, 1.0); // Hit surface
+            return;
+        }
+
+        position += direction * distance;
+
+        if (length(position - RayOrigin) > maxDistance)
+        {
+            Result[id] = float4(0, 0, 0, 1.0); // Missed
+            return;
+        }
+    }
+
+    Result[id] = float4(0, 0, 0, 1.0); // Missed
+}
