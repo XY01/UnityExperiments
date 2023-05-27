@@ -1,5 +1,6 @@
 using System.Collections;
 using System.Collections.Generic;
+using Unity.Mathematics;
 using UnityEngine;
 
 /// <summary>
@@ -49,7 +50,7 @@ public class DrawMeshInstancedIndirect : MonoBehaviour
             UpdateBuffers();
 
         // Render
-        Graphics.DrawMeshInstancedIndirect(instanceMesh, subMeshIndex, instanceMaterial, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), argsBuffer);
+        Graphics.DrawMeshInstancedProcedural(instanceMesh, subMeshIndex, instanceMaterial, new Bounds(Vector3.zero, new Vector3(100.0f, 100.0f, 100.0f)), instanceCount);
     }
 
     void UpdateBuffers()
@@ -61,40 +62,48 @@ public class DrawMeshInstancedIndirect : MonoBehaviour
         if (randomBuffer != null)
             randomBuffer.Release();
 
-        randomBuffer = new ComputeBuffer(instanceCount, 4);
+        randomBuffer = new ComputeBuffer(instanceCount, sizeof(float));
         float[] randomFloats = new float[instanceCount];
         for (int i = 0; i < instanceCount; i++)
         {
-            randomFloats[i] = Random.value;
+            randomFloats[i] = UnityEngine.Random.value;
         }
         randomBuffer.SetData(randomFloats);
         instanceMaterial.SetBuffer("_RandomValueBuffer", randomBuffer);
 
 
-        positionBuffer = new ComputeBuffer(instanceCount, 16);
+        positionBuffer = new ComputeBuffer(instanceCount, sizeof(float) * 4);
         Vector4[] positions = new Vector4[instanceCount];
         for (int i = 0; i < instanceCount; i++)
         {
-            Vector3 randPos = Random.insideUnitSphere * radius;
-            float size = Random.Range(1,3);
+            Vector3 randPos = UnityEngine.Random.insideUnitSphere * radius;
+            float size = UnityEngine.Random.Range(1,3);
             positions[i] = new Vector4(randPos.x, randPos.y, randPos.z, size);
         }
         positionBuffer.SetData(positions);
         instanceMaterial.SetBuffer("_PositionBuffer", positionBuffer);
 
-        // Indirect args
-        if (instanceMesh != null)
-        {
-            args[0] = (uint)instanceMesh.GetIndexCount(subMeshIndex);
-            args[1] = (uint)instanceCount;
-            args[2] = (uint)instanceMesh.GetIndexStart(subMeshIndex);
-            args[3] = (uint)instanceMesh.GetBaseVertex(subMeshIndex);
-        }
-        else
-        {
-            args[0] = args[1] = args[2] = args[3] = 0;
-        }
-        argsBuffer.SetData(args);
+        //// Indirect args
+        //if (instanceMesh != null)
+        //{
+        //    args[0] = (uint)instanceMesh.GetIndexCount(subMeshIndex);
+        //    args[1] = (uint)instanceCount;
+        //    args[2] = (uint)instanceMesh.GetIndexStart(subMeshIndex);
+        //    args[3] = (uint)instanceMesh.GetBaseVertex(subMeshIndex);
+        //}
+        //else
+        //{
+        //    args[0] = args[1] = args[2] = args[3] = 0;
+        //}
+        //argsBuffer.SetData(args);
+
+        // Setup the arguments buffer.
+        args = new uint[5] { 0, 0, 0, 0, 0 };
+        args[0] = (uint)instanceMesh.GetIndexCount(0);
+        args[1] = (uint)instanceCount;
+        args[2] = (uint)instanceMesh.GetIndexStart(0);
+        args[3] = (uint)instanceMesh.GetBaseVertex(0);
+        args[4] = 0;
 
         cachedInstanceCount = instanceCount;
         cachedSubMeshIndex = subMeshIndex;
