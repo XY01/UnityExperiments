@@ -6,169 +6,176 @@ using Unity.Mathematics;
 using Unity.Collections;
 using Random = UnityEngine.Random;
 using UnityEngine.Rendering;
+using System;
+
+
+
+// PROFILING
+// 128
+// Sort time    0.0003441
+// Get Data     0.0005473
+
+// 1024
+// Sort time    0.0004013
+// Get Data     0.0011548
 
 public class ComputeSort : MonoBehaviour
 {
+    [System.Serializable]
+    public struct PosDistData
+    {
+        public float3 pos;
+        public float dist;
+    }
+
+    public enum ReadbackMode
+    {
+        MainThreadBlocking,
+        Async
+    }
+
+    public Vector3 positionToCalcDistFrom;
+    public ReadbackMode readbackMode = ReadbackMode.MainThreadBlocking;
+
+    // Numthread needs to match in the compute shader
+    // to make sure the thread count is the same. 
+    // Max threads is 1024
     const int THREAD_NUM = 1024;
-    public ComputeShader shader;
 
-    private ComputeBuffer buffer;
-    private int kernel;
+    // Shader and kernel indecies
+    public ComputeShader sortComputeShader;
+    private int bitonicSortKernel;
     private int computeDistancesKernel;
+    AsyncGPUReadbackRequest request;
+    bool asyncRequestActive = false;
+   
+    // Data arrays and buffers
+    private ComputeBuffer buffer;
+    PosDistData[] sortedData;
+    NativeArray<PosDistData> sortedDataNative;
 
-    Stopwatch stopWatch;
-
-    [SerializeField]  Data[] sortedData;
-    NativeArray<Data> sortedDataNative;
-
-    public Vector3 testPos;
+    public bool sortEveryFrame = true;
+    // Verification to make sure the arrays have been sorted correctly
     public bool runVerify = true;
-    public bool verified = false;
+
+    int profilingFrameStart = 0;
 
     void Start()
     {
-        stopWatch = new Stopwatch();
+        Debug.Log("System supports async GPU readback: " + SystemInfo.supportsAsyncGPUReadback);
 
-        kernel = shader.FindKernel("BitonicSort");
-        computeDistancesKernel = shader.FindKernel("ComputeDistances");
+        // Get kernel indicies
+        bitonicSortKernel = sortComputeShader.FindKernel("BitonicSort");
+        computeDistancesKernel = sortComputeShader.FindKernel("ComputeDistances");
 
         // Create data array and fill it with values
-        sortedData = new Data[THREAD_NUM];
-       
+        sortedData = new PosDistData[THREAD_NUM];       
         for (int i = 0; i < sortedData.Length; i++)
-        {
-            sortedData[i].value = Vector3.one * Mathf.Floor(Random.value * THREAD_NUM);
-        }
-
-        sortedDataNative = new NativeArray<Data>(sortedData, Allocator.Persistent);
+            sortedData[i].pos = Vector3.one * Mathf.Floor(Random.value * THREAD_NUM);
+        
+        sortedDataNative = new NativeArray<PosDistData>(sortedData, Allocator.Persistent);
 
         // Create buffer and set it on the shader
-        buffer = new ComputeBuffer(sortedData.Length, Marshal.SizeOf(typeof(Data)));
+        buffer = new ComputeBuffer(sortedData.Length, Marshal.SizeOf(typeof(PosDistData)));
         buffer.SetData(sortedDataNative);
-        shader.SetBuffer(kernel, "posDistData", buffer);
-        shader.SetBuffer(computeDistancesKernel, "posDistData", buffer);
+
+        // Set shader variables
+        sortComputeShader.SetBuffer(bitonicSortKernel, "posDistData", buffer);
+        sortComputeShader.SetBuffer(computeDistancesKernel, "posDistData", buffer);
     }
 
-    AsyncGPUReadbackRequest request;
-    public bool runContinuous = true;
 
-    public bool asyncGet = false;
     void Update()
     {
-        if (runContinuous)
-        {
-            RunSort();
-
-            if (!asyncGet)
-                return;
-
-            // Check if last readback has completed
-            if (request.done)
-            {
-                if (request.hasError)
-                {
-                    Debug.Log("GPU readback error detected.");
-                }
-                else
-                {
-                    sortedDataNative = request.GetData<Data>();
-                }
-            }
-            else
-            {
-                Debug.Log("Read back successfully");
-                // Start new readback
-                request = AsyncGPUReadback.Request(buffer);
-            }
-
-            if (runVerify)
-                Verify();
-        }
-
-        Debug.Log(AsyncGPUReadback.supported);
-
+        if (sortEveryFrame)        
+            RunSort();        
     }
-
+       
     [ContextMenu("Sort")]
     void RunSort()
     {
-        stopWatch.Restart();
-        // stopWatch.Start();
+        if (asyncRequestActive)
+            return;
+
+        profilingFrameStart = Time.frameCount;
 
         // Set testPos on the shader
-        shader.SetVector("testPos", testPos);
+        sortComputeShader.SetVector("testPos", positionToCalcDistFrom);
 
         // Run the compute shader
-        shader.Dispatch(computeDistancesKernel, buffer.count / THREAD_NUM, 1, 1);
+        sortComputeShader.Dispatch(computeDistancesKernel, buffer.count / THREAD_NUM, 1, 1);
 
-
+        // Run bittonic sort in varying sizes so the entire array can be sorted
         int numThreadGroups = (buffer.count + THREAD_NUM - 1) / THREAD_NUM;
-
         for (uint size = 2; size <= THREAD_NUM; size <<= 1)
         {
             for (uint stride = size / 2; stride > 0; stride >>= 1)
             {
-                shader.SetInt("Size", (int)size);
-                shader.SetInt("Stride", (int)stride);
-                shader.Dispatch(kernel, numThreadGroups, 1, 1);
+                sortComputeShader.SetInt("Size", (int)size);
+                sortComputeShader.SetInt("Stride", (int)stride);
+                sortComputeShader.Dispatch(bitonicSortKernel, numThreadGroups, 1, 1);
             }
-        }
-        stopWatch.Stop();
+        }       
 
-
-
-        //Debug.Log("Sort time: " + stopWatch.Elapsed);
-
-        if (!asyncGet)
+        if(readbackMode == ReadbackMode.Async)
         {
-            // Get the sorted data        
+            // Async readback doesn't block main thread and runs the callback when recieved
+            request = AsyncGPUReadback.RequestIntoNativeArray(ref sortedDataNative, buffer, Callback);
+            asyncRequestActive = true;
+        }
+        else
+        {
+            // Get data blocks main thread until complete      
             buffer.GetData(sortedData);
-
+          
             if (runVerify)
                 Verify();
         }
-
-        //Debug.Log("Get data time: " + stopWatch.Elapsed);
-
-      
     }
 
-    // PROFILING
-    // 128
-    // Sort time    0.0003441
-    // Get Data     0.0005473
+    private void Callback(AsyncGPUReadbackRequest request)
+    {
+        if (request.hasError) throw new Exception("AsyncGPUReadback.RequestIntoNativeArray");
 
-    // 1024
-    // Sort time    0.0004013
-    // Get Data     0.0011548
+        if (runVerify)
+            Verify();
+
+        asyncRequestActive = false;
+    }
 
     public void Verify()
     {
-        verified = true;
-        for (int i = 0; i < sortedData.Length-1; i++)
+        if (readbackMode == ReadbackMode.MainThreadBlocking)
         {
-            if (sortedData[i].distance < sortedData[i+1].distance)
+            for (int i = 0; i < sortedData.Length - 1; i++)
             {
-                verified = false;
-                Debug.Log($"Not sorted {i} {sortedData[i].distance} !< {sortedData[i+1].distance}");
-                break;
+                if (sortedData[i].dist < sortedData[i + 1].dist)
+                {
+                    Debug.Log($"Not sorted {i} {sortedData[i].dist} !< {sortedData[i + 1].dist}");
+                    break;
+                }
             }
         }
+        else
+        {
+            for (int i = 0; i < sortedDataNative.Length - 1; i++)
+            {
+                if (sortedDataNative[i].dist < sortedDataNative[i + 1].dist)
+                {
+                    Debug.Log($"Not sorted {i} {sortedDataNative[i].dist} !< {sortedDataNative[i + 1].dist}");
+                    break;
+                }
+            }
+        }
+
+        int frameCount = Time.frameCount - profilingFrameStart;
+        Debug.Log("Sort verified. Readback mode: " + readbackMode + "  frame count: " + frameCount);
     }
 
     void OnDestroy()
     {
-        // Make sure to release the buffer
-        if (buffer != null)
-            buffer.Release();
-
+        // Make sure to release compute buffer and dispose of native arrays
+        buffer?.Release();
         sortedDataNative.Dispose();
-    }
-
-    [System.Serializable]
-    public struct Data
-    {
-        public float3 value;
-        public float distance;
     }
 }

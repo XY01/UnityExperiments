@@ -377,4 +377,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 9a492abfe44ed074e8260862dfd35b88, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  shader: {fileID: 7200000, guid: 6db059ffeca77a046ba1b278623659b6, type: 3}
+  positionToCalcDistFrom: {x: 0, y: 0, z: 0}
+  readbackMode: 1
+  sortComputeShader: {fileID: 7200000, guid: 6db059ffeca77a046ba1b278623659b6, type: 3}
+  sortEveryFrame: 0
+  runVerify: 1

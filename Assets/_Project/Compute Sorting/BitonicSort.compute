@@ -2,26 +2,27 @@
 #pragma kernel ComputeDistances
 
 #define THREAD_NUM 1024
-#define SWAP(x, y) { Data temp = x; x = y; y = temp; }
+#define SWAP(x, y) { PosDistData temp = x; x = y; y = temp; }
 
-struct Data
+struct PosDistData
 {
-    float3 value;
+    float3 pos;
     float distance;
 };
 
-RWStructuredBuffer<Data> posDistData;
+RWStructuredBuffer<PosDistData> posDistData;
 float3 testPos;
 
 uint Size;
 uint Stride;
 
 
+
 [numthreads(THREAD_NUM, 1, 1)]
 void ComputeDistances(uint3 id : SV_DispatchThreadID)
 {   
     uint idx = id.x;
-    float3 diff = posDistData[idx].value - testPos;
+    float3 diff = posDistData[idx].pos - testPos;
     posDistData[idx].distance = dot(diff, diff);    
 }
 
@@ -48,30 +49,7 @@ void BitonicSort(uint3 id : SV_DispatchThreadID)
             if (posDistData[idx].distance > posDistData[swapIdx].distance)
                 SWAP(posDistData[idx], posDistData[swapIdx]);
         }
-    }
-
-
-    //uint idx = id.x;
-    
-    //for (uint size = 2; size <= THREAD_NUM; size <<= 1)
-    //{
-    //    uint dir = (idx & (size << 1)) != 0;
-    //    for (uint stride = size >> 1; stride > 0; stride >>= 1)
-    //    {
-    //        GroupMemoryBarrierWithGroupSync();
-    //        uint swapIdx = idx ^ stride;
-    //        if ((idx & size) == 0 ^ dir)
-    //        {
-    //            if (posDistData[idx].distance < posDistData[swapIdx].distance)
-    //                SWAP(posDistData[idx], posDistData[swapIdx]);
-    //        }
-    //        else
-    //        {
-    //            if (posDistData[idx].distance > posDistData[swapIdx].distance)
-    //                SWAP(posDistData[idx], posDistData[swapIdx]);
-    //        }
-    //    }
-    //}    
+    }  
 }
 
 
@@ -86,7 +64,7 @@ void BitonicSort(uint3 id : SV_DispatchThreadID)
 // Profile dist vs sqr dist performance
 // . seemed to get the same results,meaning the calls were likly the expensive part not the ops
 // Square dist can be calculated by getting the dot product of a vector against itself dot(x,x) bc its just multiplying the vector byself giving the square
-// Can use defines to make code more readable, i.e. using swap macro to shorthand the swapping and values
+// Can use defines to make code more readable, i.e. using swap macro to shorthand the swapping and poss
 
 
 // Explain the bitwise operators 
