@@ -54,6 +54,7 @@ void BitonicSort(uint3 id : SV_DispatchThreadID)
 
 
 // REFS
+// Obsidian notes obsidian://open?vault=FlaimTrainer&file=Learning%2FSorting%20algorithms
 // GPT CHat: https://chat.openai.com/share/ec8dff5a-a179-4203-a473-a1789e3ae6d8
 // Bitonic sort explanation https://www.geeksforgeeks.org/bitonic-sort/
 
