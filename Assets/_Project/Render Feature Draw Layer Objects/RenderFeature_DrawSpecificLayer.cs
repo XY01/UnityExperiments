@@ -62,6 +62,7 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             RenderingUtils.ReAllocateIfNeeded(ref tempRTHandle, Vector2.one / passSettings.ResolutionDivisor, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempRTex");
 
             //RenderTextureDescriptor descriptorDepth = renderingData.cameraData.cameraTargetDescriptor;
+            //descriptorDepth.depthBufferBits = renderingData.cameraData.cameraTargetDescriptor.depthBufferBits;
             //RenderingUtils.ReAllocateIfNeeded(ref tempDepthRTHandle, Vector2.one / passSettings.ResolutionDivisor, descriptorDepth, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempDepthRTex");
         }
 
@@ -78,14 +79,17 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             CommandBuffer cmd = CommandBufferPool.Get();
             using (new ProfilingScope(cmd, new ProfilingSampler(profilerTag)))
             {
-                cmd.SetRenderTarget(tempRTHandle.nameID, renderingData.cameraData.renderer.cameraDepthTargetHandle.nameID);
+                //CoreUtils.SetRenderTarget(cmd, tempRTHandle, tempDepthRTHandle, ClearFlag.All);
+                CoreUtils.SetRenderTarget(cmd, tempRTHandle, renderingData.cameraData.renderer.cameraDepthTargetHandle, ClearFlag.All); // OG working
+               
                 context.ExecuteCommandBuffer(cmd);
                 cmd.Clear();
                 context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings, ref _renderStateBlock);
 
 
                 mat.SetTexture("_BaseCameraCol", renderingData.cameraData.renderer.cameraColorTargetHandle);
-                cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
+                CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle);
+                //cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
                 cmd.Blit(tempRTHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);                
             }           
 
@@ -100,12 +104,16 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         {
             tempRTHandle.Release();
             tempRTHandle = null;
+
+            tempDepthRTHandle?.Release();
+            tempDepthRTHandle = null;
         }
 
         public void Dispose()
         {
             // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
             tempRTHandle?.Release();
+            tempDepthRTHandle?.Release();
         }
     }
 

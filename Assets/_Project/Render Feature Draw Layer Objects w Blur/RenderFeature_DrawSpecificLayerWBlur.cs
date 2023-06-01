@@ -347,7 +347,7 @@ public class RenderFeature_DrawSpecificLayerWBlur : ScriptableRendererFeature
     // This prevents attempted destruction of a manually-assigned material later
     bool useDynamicTexture = false;
 
-    string _renderObjectId = "_RenderObjectID";
+    //string _renderObjectId = "_RenderObjectID";
 
     /// <inheritdoc/>
     public override void Create()

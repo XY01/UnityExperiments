@@ -129,7 +129,7 @@ MonoBehaviour:
   m_Active: 1
   passSettings:
     combineMat: {fileID: 2100000, guid: a68cf4d297ba66b459435efb1e57fb17, type: 2}
-    ResolutionDivisor: 10
+    ResolutionDivisor: 1
     renderPassEvent: 250
     _layerMask:
       serializedVersion: 2
