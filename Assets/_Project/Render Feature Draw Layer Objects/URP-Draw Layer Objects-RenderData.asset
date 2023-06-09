@@ -72,13 +72,12 @@ MonoBehaviour:
   m_Name: RenderFeatureDrawSpecificLayer
   m_EditorClassIdentifier: 
   m_Active: 1
+  resolutionDivisor: 20
+  _layerMask:
+    serializedVersion: 2
+    m_Bits: 64
+  renderPassEvent: 550
+  blendMat: {fileID: 2100000, guid: 4d7c8f99ca465694e8aa151475c4b98b, type: 2}
   outputMat_CopiedDepth: {fileID: 2100000, guid: a2a4f601cb802af4c93db5aadc1adb4c,
     type: 2}
   outputMat_CopiedCol: {fileID: 2100000, guid: ab2b925b5fc5699448b0ae15289d99cf, type: 2}
-  passSettings:
-    combineMat: {fileID: 2100000, guid: a68cf4d297ba66b459435efb1e57fb17, type: 2}
-    ResolutionDivisor: 8
-    renderPassEvent: 300
-    _layerMask:
-      serializedVersion: 2
-      m_Bits: 64

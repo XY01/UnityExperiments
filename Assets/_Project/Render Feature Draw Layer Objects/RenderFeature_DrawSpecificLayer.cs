@@ -7,6 +7,7 @@ using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;
 using UnityEngine.Rendering.Universal;
 using static Unity.VisualScripting.Member;
+using static UnityEngine.XR.XRDisplaySubsystem;
 using ProfilingScope = UnityEngine.Rendering.ProfilingScope;
 
 /// <summary>
@@ -37,10 +38,6 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
             CommandBufferPool.Release(cmd);
         }
     }
-
-
-
-
 
     class Custom_RenderLayerToTexturePass : ScriptableRenderPass
     {
@@ -77,193 +74,110 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
                 return;
                        
             CommandBuffer cmd = CommandBufferPool.Get("Render layer to texture pass");
-            CoreUtils.SetRenderTarget(cmd, destColRTH, destDepthRTH, ClearFlag.Depth);
+
+            // Set the render target then execute the command buffer, otherwise it will still draw to the main cam col target
+            CoreUtils.SetRenderTarget(cmd, destColRTH, destDepthRTH, ClearFlag.All);
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
 
             context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref filteringSettings, ref renderStateBlock);
             context.ExecuteCommandBuffer(cmd);
+            cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
     }
 
 
-
-
-
-    class Custom_RenderObjectsOnLayerPass : ScriptableRenderPass
+    // Take in a scaled col and depth texture, set a blending material with those textures then blit to the main cam target
+    class Custom_BlendScaledLayerOvertop : ScriptableRenderPass
     {
-        const string profilerTag = "Render Objects On Layer Pass";
+        private RTHandle scaledColRTH;
+        private RTHandle scaledDepthRTH;
 
-        PassSettings passSettings;
+        Material blendMat;
 
-        // Mat that we are going to blit the current camera texture to
-        private Material mat;
-        // Temp RT texture to blit too
-        private RTHandle tempRTHandle;
-
-        readonly List<ShaderTagId> _shaderTagIds = new List<ShaderTagId>();
-        FilteringSettings _filteringSettings;
-        RenderStateBlock _renderStateBlock;
-
-        RTHandle scaledCamDepthRTHandle;
-
-        // Constructor
-        public Custom_RenderObjectsOnLayerPass(PassSettings settings)
+        public void Setup(RTHandle destColRTH, RTHandle destDepthRTH, Material blendMat)
         {
-            this.passSettings = settings;
-            renderPassEvent = passSettings.renderPassEvent;
-
-            // Now that this is verified within the Renderer Feature, it's already "trusted" here
-            mat = passSettings.combineMat;
-
-            _filteringSettings = new FilteringSettings(RenderQueueRange.opaque, settings._layerMask);
-            // TODO Not sure what these are used for
-            _shaderTagIds.Add(new ShaderTagId("SRPDefaultUnlit"));
-            _shaderTagIds.Add(new ShaderTagId("UniversalForward"));
-            _shaderTagIds.Add(new ShaderTagId("UniversalForwardOnly"));
-            _shaderTagIds.Add(new ShaderTagId("LightweightForward"));
-
-            _renderStateBlock = new RenderStateBlock(RenderStateMask.Nothing);
-
-            // _renderStateBlock.depthState = new DepthState(true, CompareFunction.LessEqual);
+            this.scaledColRTH = destColRTH;
+            this.scaledDepthRTH = destDepthRTH;
+            this.blendMat = blendMat;
         }
-
-     
-        public void Setup(RTHandle source)
-        {
-            scaledCamDepthRTHandle = source;
-        }
-
-        // This method is called before executing the render pass.
-        // It can be used to configure render targets and their clear state. Also to create temporary render target textures.
-        // When empty this render pass will render to the active camera render target.
-        // You should never call CommandBuffer.SetRenderTarget. Instead call <c>ConfigureTarget</c> and <c>ConfigureClear</c>.
-        // The render pipeline will ensure target setup and clearing happens in a performant manner.
-        public override void OnCameraSetup(CommandBuffer cmd, ref RenderingData renderingData)
-        {
-            RenderTextureDescriptor descriptor = renderingData.cameraData.cameraTargetDescriptor;
-            descriptor.depthBufferBits = 0; // Color and depth cannot be combined in RTHandles
-            descriptor.colorFormat = RenderTextureFormat.ARGB32;
-            RenderingUtils.ReAllocateIfNeeded(ref tempRTHandle, Vector2.one / passSettings.ResolutionDivisor, descriptor, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_TempRTex");
-        }
-
-
-       
 
         public override void Execute(ScriptableRenderContext context, ref RenderingData renderingData)
         {
-            if (mat == null)
-                return;            
+            if (renderingData.cameraData.camera.cameraType != CameraType.Game)
+                return;
 
-            SortingCriteria sortingCriteria = SortingCriteria.CommonOpaque;
-            DrawingSettings drawingSettings = CreateDrawingSettings(_shaderTagIds, ref renderingData, sortingCriteria);
+            blendMat.SetTexture("_ScaledCol", scaledColRTH);
+            blendMat.SetTexture("_ScaledDepth", scaledDepthRTH);
+            blendMat.SetTexture("_MainTex", renderingData.cameraData.renderer.cameraColorTargetHandle);
+            blendMat.SetTexture("_CamFullSizeDepth", renderingData.cameraData.renderer.cameraDepthTargetHandle);
 
-            // NOTE: Do NOT mix ProfilingScope with named CommandBuffers i.e. CommandBufferPool.Get("name").
-            // Currently there's an issue which results in mismatched markers.
-            CommandBuffer cmd = CommandBufferPool.Get("Custom Render Objects On Layer Pass");
-            using (new ProfilingScope(cmd, new ProfilingSampler(profilerTag)))
-            {
-                // Set the render target to the scaled down colour and scaled down copied depth
-                CoreUtils.SetRenderTarget(cmd, tempRTHandle, renderingData.cameraData.renderer.cameraDepthTargetHandle, ClearFlag.Depth); // OG working
-                //CoreUtils.SetRenderTarget(cmd, tempRTHandle, copiedCamDepthHandle, ClearFlag.All); // OG working  
-                context.ExecuteCommandBuffer(cmd);
-                cmd.Clear();
+            CommandBuffer cmd = CommandBufferPool.Get("Blend Scaled Layer Overtop");
+            //CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle, renderingData.cameraData.renderer.cameraDepthTargetHandle, ClearFlag.All);
+            //context.ExecuteCommandBuffer(cmd);
+           // cmd.Clear();
 
-                context.DrawRenderers(renderingData.cullResults, ref drawingSettings, ref _filteringSettings, ref _renderStateBlock);
-                mat.SetTexture("_BaseCameraCol", tempRTHandle);
-                CoreUtils.SetRenderTarget(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle);
-                //cmd.SetRenderTarget(renderingData.cameraData.renderer.cameraColorTargetHandle);
-                cmd.Blit(tempRTHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, mat);                
-            }           
-
-            // Execute the command buffer and release it
+            //Blit(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, blendMat);
+            Blitter.BlitCameraTexture(cmd, renderingData.cameraData.renderer.cameraColorTargetHandle, renderingData.cameraData.renderer.cameraColorTargetHandle, blendMat, 0);
             context.ExecuteCommandBuffer(cmd);
             cmd.Clear();
             CommandBufferPool.Release(cmd);
         }
-
-        // Cleanup any allocated resources that were created during the execution of this render pass.
-        public override void OnCameraCleanup(CommandBuffer cmd)
-        {
-            tempRTHandle.Release();
-            tempRTHandle = null;
-        }
-
-        public void Dispose()
-        {
-            // This seems vitally important, so why isn't it more prominently stated how it's intended to be used?
-            tempRTHandle?.Release();
-        }
     }
 
 
 
-    [System.Serializable]
-    public class PassSettings
-    {
-        public Material combineMat;
-        public int ResolutionDivisor = 1;
-        public RenderPassEvent renderPassEvent = RenderPassEvent.AfterRenderingTransparents;
-        public LayerMask _layerMask;
-    }
+    // Render passes
+    //private Custom_CopyFramePass copyDepthPass;
+    Custom_RenderLayerToTexturePass renderLayerToTexturePass;
+    Custom_BlendScaledLayerOvertop renderScaledLayerOvertopPass;
 
-    private Custom_CopyFramePass copyDepthPass;
+
+    // Scaled RT handles
     private RTHandle scaledDepthRTH;
     private RTHandle scaledColRTH;
 
+
+    public int resolutionDivisor = 1;
+    public LayerMask _layerMask;
+    public RenderPassEvent renderPassEvent;
+
+    public Material blendMat;
+
+    // Debug mats to display output textures
     public Material outputMat_CopiedDepth;
     public Material outputMat_CopiedCol;
-
-
-    Custom_RenderObjectsOnLayerPass customRenderObjectsOnLayerPass;
-    public PassSettings passSettings = new PassSettings();
-
-    // This prevents attempted destruction of a manually-assigned material later
-    bool useDynamicTexture = false;
-
-    string _renderObjectId = "_RenderObjectID";
-
-
-    Custom_RenderLayerToTexturePass renderLayerToTexturePass;
 
     /// <inheritdoc/>
     public override void Create()
     {
-        if (passSettings.combineMat == null)
-        {
-            passSettings.combineMat = CoreUtils.CreateEngineMaterial("RenderFeature/Combine");
-            useDynamicTexture = true;
-        }
-
-        this.customRenderObjectsOnLayerPass = new Custom_RenderObjectsOnLayerPass(passSettings);
-
-        copyDepthPass = new Custom_CopyFramePass();
-        copyDepthPass.renderPassEvent = passSettings.renderPassEvent;
-
-        renderLayerToTexturePass = new Custom_RenderLayerToTexturePass(passSettings._layerMask);
+        //copyDepthPass = new Custom_CopyFramePass();
+        //copyDepthPass.renderPassEvent = renderPassEvent;
+        renderLayerToTexturePass = new Custom_RenderLayerToTexturePass(_layerMask);
+        renderScaledLayerOvertopPass = new Custom_BlendScaledLayerOvertop();
     }
 
     public override void SetupRenderPasses(ScriptableRenderer renderer, in RenderingData renderingData)
     {
-        // Create scaled col and depth RT Handles
+        //-- Scaled col RT
         var descriptorCol = new RenderTextureDescriptor(renderingData.cameraData.cameraTargetDescriptor.width, renderingData.cameraData.cameraTargetDescriptor.height, RenderTextureFormat.ARGB32);
-        RenderingUtils.ReAllocateIfNeeded(ref scaledColRTH, Vector2.one / passSettings.ResolutionDivisor, descriptorCol, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_scaledCol");
+        RenderingUtils.ReAllocateIfNeeded(ref scaledColRTH, Vector2.one / resolutionDivisor, descriptorCol, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_scaledCol");
         outputMat_CopiedCol.SetTexture("_OutputTex", scaledColRTH);
 
-        var descriptorDepth = new RenderTextureDescriptor(renderingData.cameraData.cameraTargetDescriptor.width, renderingData.cameraData.cameraTargetDescriptor.height, RenderTextureFormat.R8);
-        RenderingUtils.ReAllocateIfNeeded(ref scaledDepthRTH, Vector2.one / passSettings.ResolutionDivisor, descriptorDepth, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_scaledDepth");
+        //-- Scaled depth RT
+        var descriptorDepth = new RenderTextureDescriptor(renderingData.cameraData.cameraTargetDescriptor.width, renderingData.cameraData.cameraTargetDescriptor.height, RenderTextureFormat.Depth, 16);
+        RenderingUtils.ReAllocateIfNeeded(ref scaledDepthRTH, Vector2.one / resolutionDivisor, descriptorDepth, FilterMode.Bilinear, TextureWrapMode.Clamp, name: "_scaledDepth");
         outputMat_CopiedDepth.SetTexture("_OutputTex", scaledDepthRTH);
 
 
         //copyDepthPass.ConfigureClear(ClearFlag.None, Color.red);
         //copyDepthPass.Setup(renderer.cameraDepthTargetHandle, scaledDepthRTH);
 
-       
-        //customRenderObjectsOnLayerPass.Setup(scaledDepthRTH);
+        //renderLayerToTexturePass.ConfigureClear(ClearFlag.None, Color.red);
 
-        renderLayerToTexturePass.ConfigureClear(ClearFlag.None, Color.red);
         renderLayerToTexturePass.Setup(scaledColRTH, scaledDepthRTH);
+        renderScaledLayerOvertopPass.Setup(scaledColRTH, scaledDepthRTH, blendMat);
     }
 
     // Here you can inject one or multiple render passes in the renderer.
@@ -273,20 +187,13 @@ public class RenderFeature_DrawSpecificLayer : ScriptableRendererFeature
         //renderer.EnqueuePass(copyDepthPass);
         //renderer.EnqueuePass(customRenderObjectsOnLayerPass);
         renderer.EnqueuePass(renderLayerToTexturePass);
+        renderer.EnqueuePass(renderScaledLayerOvertopPass);
     }
 
     
 
     protected override void Dispose(bool disposing)
     {
-        if(useDynamicTexture)
-        {
-            // Added this line to match convention for cleaning up materials
-            // ... But only for a dynamically-generated material
-            CoreUtils.Destroy(passSettings.combineMat);
-        }
-        customRenderObjectsOnLayerPass.Dispose();
-
         scaledColRTH?.Release();
         scaledDepthRTH?.Release();
     }
