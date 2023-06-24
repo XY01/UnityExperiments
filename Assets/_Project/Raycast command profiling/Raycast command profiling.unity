@@ -10409,7 +10409,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: e9f6e51a34388f44791807bf94dbba2f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  rayCount: 1000
+  rayCount: 500
   maxHits: 1
   allocateNativeArraysOnCall: 1
 --- !u!4 &1943815030
