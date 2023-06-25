@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: RaymarchingAmpTexture
+  m_Name: RaymarchingAmpTexture Quad
   m_Shader: {fileID: 4800000, guid: c6c58975e2169184da7c1f3bdf470557, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -44,7 +44,7 @@ Material:
     - _Color1: {r: 1, g: 0, b: 0, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
     - _LightCol: {r: 1, g: 1, b: 1, a: 0}
-    - _ShadeCol: {r: 0.14999998, g: 0.14999998, b: 0.14999998, a: 0}
+    - _ShadeCol: {r: 0.15, g: 0.15, b: 0.15, a: 0}
     - _Sphere: {r: 0, g: 0, b: 0, a: 0}
-    - _offset: {r: 0.5, g: 0.5, b: 0.5, a: 0}
+    - _offset: {r: 0.5, g: 0.5, b: 0, a: 0}
   m_BuildTextureStacks: []

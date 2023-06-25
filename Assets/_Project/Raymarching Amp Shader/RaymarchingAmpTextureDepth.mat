@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: RaymarchingAmpTexture
-  m_Shader: {fileID: 4800000, guid: c6c58975e2169184da7c1f3bdf470557, type: 3}
+  m_Name: RaymarchingAmpTextureDepth
+  m_Shader: {fileID: 4800000, guid: 381e2f37c102ec249812cc5698440958, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -30,9 +30,9 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaCutoff: 0.5
-    - _AlphaScalar: 1
+    - _AlphaScalar: 0.994
     - _DarknessThreshold: 0
-    - _LightAsorb: 2.03
+    - _LightAsorb: 2
     - _NumSteps: 32
     - _StepSize: 0.02
     - _densityScale: 0.3
@@ -40,11 +40,8 @@ Material:
     - _numLightSteps: 16
     - _transmittance: 1
     m_Colors:
-    - _Color0: {r: 0, g: 0, b: 0, a: 0}
-    - _Color1: {r: 1, g: 0, b: 0, a: 0}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _LightCol: {r: 1, g: 1, b: 1, a: 0}
-    - _ShadeCol: {r: 0.14999998, g: 0.14999998, b: 0.14999998, a: 0}
-    - _Sphere: {r: 0, g: 0, b: 0, a: 0}
+    - _LightCol: {r: 1, g: 1, b: 1, a: 1}
+    - _ShadeCol: {r: 0.15, g: 0.15, b: 0.15, a: 0}
     - _offset: {r: 0.5, g: 0.5, b: 0.5, a: 0}
   m_BuildTextureStacks: []
