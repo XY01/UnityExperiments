@@ -1,0 +1,114 @@
+#pragma kernel SDF
+
+RWTexture3D<float4> Result;
+Buffer<float3> vertexBuffer;
+Buffer<int> triangleBuffer;
+
+float width;
+float height;
+float depth;
+
+float3 boundsMin;
+float3 boundsMax;
+
+struct Triangle
+{
+    float3 v0, v1, v2;
+};
+
+Triangle GetTriangle(uint index)
+{
+    Triangle tri;
+    tri.v0 = vertexBuffer[triangleBuffer[index * 3 + 0]];
+    tri.v1 = vertexBuffer[triangleBuffer[index * 3 + 1]];
+    tri.v2 = vertexBuffer[triangleBuffer[index * 3 + 2]];
+    return tri;
+}
+
+float3 ClosestPointOnLine(float3 a, float3 b, float3 p)
+{
+    float3 ab = b - a;
+    float t = dot(p - a, ab) / dot(ab, ab);
+    t = clamp(t, 0, 1); // Ensure the point is on the line segment, not just the line.
+    return a + ab * t;
+}
+
+float3 ClosestPointOnTriangle(Triangle tri, float3 p)
+{
+    // Check if P in vertex region outside A
+    float3 ab = tri.v1 - tri.v0;
+    float3 ac = tri.v2 - tri.v0;
+    float3 ap = p - tri.v0;
+    float d1 = dot(ab, ap);
+    float d2 = dot(ac, ap);
+    if (d1 <= 0.0 && d2 <= 0.0)
+        return tri.v0; // Barycentric coordinates (1,0,0)
+
+    // Check if P in vertex region outside B
+    float3 bp = p - tri.v1;
+    float d3 = dot(ab, bp);
+    float d4 = dot(ac, bp);
+    if (d3 >= 0.0 && d4 <= d3)
+        return tri.v1; // Barycentric coordinates (0,1,0)
+
+    // Check if P in edge region of AB, if so return projection of P onto AB
+    float vc = d1 * d4 - d3 * d2;
+    if (vc <= 0.0 && d1 >= 0.0 && d3 <= 0.0) {
+        float v = d1 / (d1 - d3);
+        return tri.v0 + v * ab; // Barycentric coordinates (1-v,v,0)
+    }
+
+    // Check if P in vertex region outside C
+    float3 cp = p - tri.v2;
+    float d5 = dot(ab, cp);
+    float d6 = dot(ac, cp);
+    if (d6 >= 0.0 && d5 <= d6)
+        return tri.v2; // Barycentric coordinates (0,0,1)
+
+    // Check if P in edge region of AC, if so return projection of P onto AC
+    float vb = d5 * d2 - d1 * d6;
+    if (vb <= 0.0 && d2 >= 0.0 && d6 <= 0.0) {
+        float w = d2 / (d2 - d6);
+        return tri.v0 + w * ac; // Barycentric coordinates (1-w,0,w)
+    }
+
+    // Check if P in edge region of BC, if so return projection of P onto BC
+    float va = d3 * d6 - d5 * d4;
+    if (va <= 0.0 && (d4 - d3) >= 0.0 && (d5 - d6) >= 0.0) {
+        float w = (d4 - d3) / ((d4 - d3) + (d5 - d6));
+        return tri.v1 + w * (tri.v2 - tri.v1); // Barycentric coordinates (0,1-w,w)
+    }
+
+    // P inside face region. Compute Q through its Barycentric coordinates (u,v,w)
+    float denom = 1.0 / (va + vb + vc);
+    float v = vb * denom;
+    float w = vc * denom;
+    return tri.v0 + ab * v + ac * w; // = u*tri.v0 + v*tri.v1 + w*tri.v2, u = va * denom = 1.0 - v - w
+}
+
+float DistanceToTriangle(float3 pos, Triangle tri)
+{
+    float3 closestPoint = ClosestPointOnTriangle(tri, pos);
+    return length(closestPoint - pos);
+}
+
+[numthreads(8, 8, 8)]
+void SDF(uint3 id : SV_DispatchThreadID)
+{
+    float u = (id.x / width);
+    float v = (id.y / height);
+    float w = (id.z / depth); 
+    
+    // float3 pos = ...; // compute position based on id
+    //
+    // float minDist = INFINITY;
+    // for (uint i = 0; i < triangleBuffer.Length / 3; i++)
+    // {
+    //     Triangle tri = GetTriangle(i);
+    //     float dist = DistanceToTriangle(pos, tri);
+    //     minDist = min(minDist, dist);
+    // }
+
+    // Write SDF value to output
+    Result[id] = float4(u,v,w,1);
+}
