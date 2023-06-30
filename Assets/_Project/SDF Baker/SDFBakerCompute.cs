@@ -2,21 +2,33 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
+using UnityEngine.Serialization;
 
 public class SDFBakerCompute : MonoBehaviour
 {
     public ComputeShader sdfShader;
-    public MeshRenderer targetMesh;
+    public MeshRenderer[] targetMeshes;
     public RenderTexture outputTexture;
 
     public int resolution = 512;
 
     private ComputeBuffer vertexBuffer;
     private ComputeBuffer triangleBuffer;
+
+    [Range(0,1)]
+    public float boundsExpand = .1f;
+
+    private Bounds sdfBounds;
     
     [ContextMenu("Bake")]
     void Bake()
     {
+        if (targetMeshes.Length == 0)
+        {
+            Debug.Log("No meshes assigned to SDF baker");
+            return;
+        }
+
         // Init render texture
         outputTexture = new RenderTexture(resolution,resolution,0)  // Init render texture, 0)
         {
@@ -39,30 +51,43 @@ public class SDFBakerCompute : MonoBehaviour
         sdfShader.SetInt("depth", outputTexture.volumeDepth);
 
         // Set the target mesh bounds
-        Bounds sdfBounds = new Bounds(targetMesh.bounds.center, targetMesh.bounds.size);
-        sdfBounds.Expand(.8f);
+        sdfBounds = targetMeshes[0].bounds;
+        
+        List<Vector3> vertPosList = new List<Vector3>();
+        List<int> trianglesList = new List<int>();
+        int triOffset = 0;
+        for (int i = 0; i < targetMeshes.Length; i++)
+        {
+            sdfBounds.Encapsulate(targetMeshes[i].bounds);
+            Mesh mesh = targetMeshes[i].GetComponent<MeshFilter>().mesh;
+            
+            Vector3[] vertices = mesh.vertices;
+            for (int j = 0; j < vertices.Length; j++)
+                vertPosList.Add(targetMeshes[i].transform.TransformPoint(vertices[j]));
+
+            int[] triangles = mesh.triangles;
+            for (int j = 0; j < triangles.Length; j++)
+                trianglesList.Add(triangles[j] + triOffset);
+
+            // Offset vert index by mesh vertex count so next mesh indecies line up with the 
+            // vertex buffer
+            triOffset += vertices.Length;
+        }
+        
+        sdfBounds.Expand(boundsExpand);
+        
         sdfShader.SetVector("boundsMin", sdfBounds.min);
         sdfShader.SetVector("boundsMax", sdfBounds.max);
         
-        Mesh mesh = targetMesh.GetComponent<MeshFilter>().mesh;
-
-        // Convert mesh data to arrays
-        // Convert verts to world space
-        Vector3[] vertices = mesh.vertices;
-        for (int i = 0; i < vertices.Length; i++)
-        {
-            vertices[i] = targetMesh.transform.TransformPoint(vertices[i]);
-        }
-        
-        int[] triangles = mesh.triangles;
-
         // Create compute buffers
-        vertexBuffer = new ComputeBuffer(vertices.Length, 12); // 12 because sizeof(float3) = 3 * sizeof(float) = 3 * 4 = 12
-        triangleBuffer = new ComputeBuffer(triangles.Length, 4); // sizeof(int) = 4
+        vertexBuffer = new ComputeBuffer(vertPosList.Count, 12); // 12 because sizeof(float3) = 3 * sizeof(float) = 3 * 4 = 12
+        triangleBuffer = new ComputeBuffer(trianglesList.Count, 4); // sizeof(int) = 4
 
+        print($"vert count {vertPosList.Count}  tri count {trianglesList.Count}");
+        
         // Send data to GPU
-        vertexBuffer.SetData(vertices);
-        triangleBuffer.SetData(triangles);
+        vertexBuffer.SetData(vertPosList);
+        triangleBuffer.SetData(trianglesList);
 
         int sdfKernel = sdfShader.FindKernel("SDF");
         // Set buffers in the compute shader
@@ -87,6 +112,11 @@ public class SDFBakerCompute : MonoBehaviour
         //
         // // Dispose when finished to avoid memory leaks
         // Destroy(tex);
+    }
+
+    private void OnDrawGizmos()
+    {
+        Gizmos.DrawWireCube(sdfBounds.center, sdfBounds.size);
     }
 
     private void OnDestroy()

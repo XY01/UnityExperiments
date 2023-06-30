@@ -119,5 +119,6 @@ void SDF(uint3 id : SV_DispatchThreadID)
     }
 
     // Write SDF value to output
-    Result[id] = float4(minDist,0,0,1);
+    float testAlpha = minDist < .1 ? 1 : 0;
+    Result[id] = float4(1-minDist,0,0,testAlpha);
 }
