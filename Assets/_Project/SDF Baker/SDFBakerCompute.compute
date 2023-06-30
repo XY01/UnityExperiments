@@ -119,6 +119,72 @@ void SDF(uint3 id : SV_DispatchThreadID)
     }
 
     // Write SDF value to output
-    float testAlpha = minDist < .1 ? 1 : 0;
-    Result[id] = float4(1-minDist,0,0,testAlpha);
+    float testAlpha = minDist < .03 ? 1 : 0;
+    Result[id] = float4(minDist,0,0,testAlpha);
 }
+
+//
+// float denisty = 0;
+// float transmission = 0;
+// float lightAccumulation = 0;
+// float finalLight = 0;
+// float t = 0;
+//
+// for (int i = 0; i < numSteps; i++)
+// {
+     // float3 rayOrigin + rayDirection * t;
+     // float d = tex3Dlod(_MainTex, p, 0).r;
+     // if(d < 0.01) {
+     //     return float4(rayOrigin, 1.0); // we hit something, return its position as a color.
+     // }
+     // t += d;
+     // if(t >= 1.0) {
+     //     break; // we didn't hit anything
+     // }
+//
+//
+//
+//     
+//     float sampleDensity = tex3D(Volume,samplingPos).r;
+//     denisty += sampleDensity * densityScale;
+//
+//     // Lighting
+//     float3 lightRayOrigin = samplingPos;
+//     for (int j = 0; j < numLightSteps; j++)
+//     {
+//         lightRayOrigin += lightDir * lightStepSize;
+//         float lightDensity = tex3Dlod(Volume, lightRayOrigin, 0).r;
+//         lightAccumulation += lightDensity * densityScale; 
+//     }
+//
+//     float lightTransmission = exp(-lightAccumulation);
+//     float shadow = darknessThreshold + lightTransmission * (1.0 - darknessThreshold);
+//     finalLight += denisty * transmittance * shadow;
+//     transmittance *= exp(-denisty*lightAsorb);
+// }
+//
+// transmission = exp(-denisty);
+// return float3(finalLight, transmission, transmittance);
+//
+//
+//
+//
+//
+// float3 rayOrigin = _BoundsMin;
+// float3 rayDirection = normalize(_BoundsMax - _BoundsMin);
+//
+// float t = 0.0;
+//
+// for(int j = 0; j < 256; j++) {
+//     float3 p = rayOrigin + rayDirection * t;
+//     float d = tex3D(_MainTex, p).r;
+//     if(d < 0.01) {
+//         return float4(p, 1.0); // we hit something, return its position as a color.
+//     }
+//     t += d;
+//     if(t >= 1.0) {
+//         break; // we didn't hit anything
+//     }
+// }
+//
+// return fixed4(0,0,0,1); // background color.

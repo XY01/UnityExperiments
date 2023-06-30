@@ -1,0 +1,56 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!21 &2100000
+Material:
+  serializedVersion: 8
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_Name: RaymarchingAmpRepeatingNoise
+  m_Shader: {fileID: 4800000, guid: c3a0585ea98dea74f92b3d941cbdd908, type: 3}
+  m_Parent: {fileID: 0}
+  m_ModifiedSerializedProperties: 0
+  m_ValidKeywords: []
+  m_InvalidKeywords: []
+  m_LightmapFlags: 4
+  m_EnableInstancingVariants: 0
+  m_DoubleSidedGI: 0
+  m_CustomRenderQueue: -1
+  stringTagMap: {}
+  disabledShaderPasses: []
+  m_LockedProperties: 
+  m_SavedProperties:
+    serializedVersion: 3
+    m_TexEnvs:
+    - _Noise3D:
+        m_Texture: {fileID: 11700000, guid: 4ed99a7ccafd728408a1bd580f472384, type: 2}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    - _Volume:
+        m_Texture: {fileID: 11700000, guid: ccce97dfb33be7a4bbe15dc0a0275c94, type: 3}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
+    m_Ints: []
+    m_Floats:
+    - _AlphaCutoff: 0.5
+    - _AlphaScalar: 1
+    - _DarknessThreshold: 0
+    - _LightAsorb: 2
+    - _NoiseDenistyScale: 5
+    - _NoiseScale: 0.97
+    - _NoiseStr: 2.2
+    - _NumSteps: 16
+    - _StepSize: 0.2
+    - _densityScale: 0.5
+    - _lightStepSize: 0.1
+    - _numLightSteps: 16
+    - _transmittance: 1
+    m_Colors:
+    - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
+    - _LightCol: {r: 0.8490566, g: 0.8490566, b: 0.8490566, a: 1}
+    - _NoiseOffset: {r: -0.05, g: -0.4, b: 0, a: 0}
+    - _ShadeCol: {r: 0.07547165, g: 0.07547165, b: 0.07547165, a: 0}
+    - _Vector0: {r: 0, g: 1, b: 0, a: 0}
+    - _offset: {r: 0, g: 0, b: 0, a: 0}
+  m_BuildTextureStacks: []
