@@ -9,7 +9,7 @@ Shader "RaymarchingAmpSDF"
 		[ASEBegin]_NumSteps("NumSteps", Int) = 64
 		_StepSize("StepSize", Float) = 0.02
 		_densityScale("densityScale", Float) = 1
-		_Volume("Volume", 3D) = "white" {}
+		_SDF("SDF", 3D) = "white" {}
 		_offset("offset", Vector) = (0,0,0,0)
 		_numLightSteps("numLightSteps", Int) = 16
 		_lightStepSize("lightStepSize", Float) = 0
@@ -33,7 +33,7 @@ Shader "RaymarchingAmpSDF"
 		LOD 0
 
 		
-		Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Transparent" "Queue"="Transparent" }
+		Tags { "RenderPipeline"="UniversalPipeline" "RenderType"="Opaque" "Queue"="Geometry" }
 		
 		Cull Back
 		AlphaToMask Off
@@ -155,8 +155,8 @@ Shader "RaymarchingAmpSDF"
 			Name "Forward"
 			Tags { "LightMode"="UniversalForward" }
 			
-			Blend SrcAlpha OneMinusSrcAlpha, One OneMinusSrcAlpha
-			ZWrite Off
+			Blend One Zero, One Zero
+			ZWrite On
 			ZTest LEqual
 			Offset 0 , 0
 			ColorMask RGBA
@@ -231,36 +231,30 @@ Shader "RaymarchingAmpSDF"
 				float _TessMaxDisp;
 			#endif
 			CBUFFER_END
-			sampler3D _Volume;
+			sampler3D _SDF;
 
 
-			float3 Raymarch9( float3 rayOrigin, float3 rayDirection, int numSteps, float stepSize, float densityScale, sampler3D Volume, float3 offset, int numLightSteps, float lightStepSize, float3 lightDir, float lightAsorb, float darknessThreshold, float transmittance )
+			float3 RaymarchAmpSDF9( float3 rayOrigin, float3 rayDirection, int numSteps, float stepSize, float densityScale, sampler3D Volume, float3 offset, int numLightSteps, float lightStepSize, float3 lightDir, float lightAsorb, float darknessThreshold, float transmittance, float3 boundsMin, float3 boundsMax )
 			{
 				 float denisty = 0;
 				float transmission = 0;
 				float lightAccumulation = 0;
 				float finalLight = 0;
+				float t = 0;
 				        for (int i = 0; i < numSteps; i++)
 				        {
-				            rayOrigin += rayDirection * stepSize;
-					float3 samplingPos = rayOrigin+offset;
-				            float sampleDensity = tex3D(Volume,samplingPos).r;
-				            denisty += sampleDensity * densityScale;
-					// Lighting
-					float3 lightRayOrigin = samplingPos;
-				 	for (int j = 0; j < numLightSteps; j++)
-				       	{
-						lightRayOrigin += lightDir * lightStepSize;
-						float lightDensity = tex3D(Volume, lightRayOrigin).r;
-						lightAccumulation += lightDensity * densityScale; 
-					}
-				float lightTransmission = exp(-lightAccumulation);
-				float shadow = darknessThreshold + lightTransmission * (1.0 - darknessThreshold);
-				finalLight += denisty * transmittance * shadow;
-				transmittance *= exp(-denisty*lightAsorb);
+				     float3 p = rayOrigin + rayDirection * t;
+					float4 posMip = float4(p,0);
+				     float d = tex3Dlod(Volume, posMip).r;
+				     if(d < 0.01) {
+				         return float4(p , 0); // we hit something, return its position as a color.
+				     }
+				     t += d *.5;
+				     if(t >= 1.0) {
+				         break; // we didn't hit anything
+				     }
 				        }
-				        transmission = exp(-denisty);
-				return float3(finalLight, transmission, transmittance);
+				 return float4(0,0,0,0);
 			}
 			
 			
@@ -406,7 +400,7 @@ Shader "RaymarchingAmpSDF"
 				int numSteps9 = _NumSteps;
 				float stepSize9 = _StepSize;
 				float densityScale9 = _densityScale;
-				sampler3D Volume9 = _Volume;
+				sampler3D Volume9 = _SDF;
 				float4 transform19 = mul(GetObjectToWorldMatrix(),float4( 0,0,0,1 ));
 				float3 offset9 = ( float4( _offset , 0.0 ) - transform19 ).xyz;
 				int numLightSteps9 = _numLightSteps;
@@ -415,8 +409,10 @@ Shader "RaymarchingAmpSDF"
 				float lightAsorb9 = _LightAsorb;
 				float darknessThreshold9 = _DarknessThreshold;
 				float transmittance9 = _transmittance;
-				float3 localRaymarch9 = Raymarch9( rayOrigin9 , rayDirection9 , numSteps9 , stepSize9 , densityScale9 , Volume9 , offset9 , numLightSteps9 , lightStepSize9 , lightDir9 , lightAsorb9 , darknessThreshold9 , transmittance9 );
-				float3 break27 = localRaymarch9;
+				float3 boundsMin9 = float3( 0,0,0 );
+				float3 boundsMax9 = float3( 0,0,0 );
+				float3 localRaymarchAmpSDF9 = RaymarchAmpSDF9( rayOrigin9 , rayDirection9 , numSteps9 , stepSize9 , densityScale9 , Volume9 , offset9 , numLightSteps9 , lightStepSize9 , lightDir9 , lightAsorb9 , darknessThreshold9 , transmittance9 , boundsMin9 , boundsMax9 );
+				float3 break27 = localRaymarchAmpSDF9;
 				float4 lerpResult32 = lerp( _ShadeCol , _LightCol , break27.x);
 				
 				float3 BakedAlbedo = 0;
@@ -521,36 +517,30 @@ Shader "RaymarchingAmpSDF"
 				float _TessMaxDisp;
 			#endif
 			CBUFFER_END
-			sampler3D _Volume;
+			sampler3D _SDF;
 
 
-			float3 Raymarch9( float3 rayOrigin, float3 rayDirection, int numSteps, float stepSize, float densityScale, sampler3D Volume, float3 offset, int numLightSteps, float lightStepSize, float3 lightDir, float lightAsorb, float darknessThreshold, float transmittance )
+			float3 RaymarchAmpSDF9( float3 rayOrigin, float3 rayDirection, int numSteps, float stepSize, float densityScale, sampler3D Volume, float3 offset, int numLightSteps, float lightStepSize, float3 lightDir, float lightAsorb, float darknessThreshold, float transmittance, float3 boundsMin, float3 boundsMax )
 			{
 				 float denisty = 0;
 				float transmission = 0;
 				float lightAccumulation = 0;
 				float finalLight = 0;
+				float t = 0;
 				        for (int i = 0; i < numSteps; i++)
 				        {
-				            rayOrigin += rayDirection * stepSize;
-					float3 samplingPos = rayOrigin+offset;
-				            float sampleDensity = tex3D(Volume,samplingPos).r;
-				            denisty += sampleDensity * densityScale;
-					// Lighting
-					float3 lightRayOrigin = samplingPos;
-				 	for (int j = 0; j < numLightSteps; j++)
-				       	{
-						lightRayOrigin += lightDir * lightStepSize;
-						float lightDensity = tex3D(Volume, lightRayOrigin).r;
-						lightAccumulation += lightDensity * densityScale; 
-					}
-				float lightTransmission = exp(-lightAccumulation);
-				float shadow = darknessThreshold + lightTransmission * (1.0 - darknessThreshold);
-				finalLight += denisty * transmittance * shadow;
-				transmittance *= exp(-denisty*lightAsorb);
+				     float3 p = rayOrigin + rayDirection * t;
+					float4 posMip = float4(p,0);
+				     float d = tex3Dlod(Volume, posMip).r;
+				     if(d < 0.01) {
+				         return float4(p , 0); // we hit something, return its position as a color.
+				     }
+				     t += d *.5;
+				     if(t >= 1.0) {
+				         break; // we didn't hit anything
+				     }
 				        }
-				        transmission = exp(-denisty);
-				return float3(finalLight, transmission, transmittance);
+				 return float4(0,0,0,0);
 			}
 			
 
@@ -721,7 +711,7 @@ Shader "RaymarchingAmpSDF"
 				int numSteps9 = _NumSteps;
 				float stepSize9 = _StepSize;
 				float densityScale9 = _densityScale;
-				sampler3D Volume9 = _Volume;
+				sampler3D Volume9 = _SDF;
 				float4 transform19 = mul(GetObjectToWorldMatrix(),float4( 0,0,0,1 ));
 				float3 offset9 = ( float4( _offset , 0.0 ) - transform19 ).xyz;
 				int numLightSteps9 = _numLightSteps;
@@ -730,8 +720,10 @@ Shader "RaymarchingAmpSDF"
 				float lightAsorb9 = _LightAsorb;
 				float darknessThreshold9 = _DarknessThreshold;
 				float transmittance9 = _transmittance;
-				float3 localRaymarch9 = Raymarch9( rayOrigin9 , rayDirection9 , numSteps9 , stepSize9 , densityScale9 , Volume9 , offset9 , numLightSteps9 , lightStepSize9 , lightDir9 , lightAsorb9 , darknessThreshold9 , transmittance9 );
-				float3 break27 = localRaymarch9;
+				float3 boundsMin9 = float3( 0,0,0 );
+				float3 boundsMax9 = float3( 0,0,0 );
+				float3 localRaymarchAmpSDF9 = RaymarchAmpSDF9( rayOrigin9 , rayDirection9 , numSteps9 , stepSize9 , densityScale9 , Volume9 , offset9 , numLightSteps9 , lightStepSize9 , lightDir9 , lightAsorb9 , darknessThreshold9 , transmittance9 , boundsMin9 , boundsMax9 );
+				float3 break27 = localRaymarchAmpSDF9;
 				
 				float Alpha = ( ( 1.0 - break27.y ) * _AlphaScalar );
 				float AlphaClipThreshold = 0.5;
@@ -826,36 +818,30 @@ Shader "RaymarchingAmpSDF"
 				float _TessMaxDisp;
 			#endif
 			CBUFFER_END
-			sampler3D _Volume;
+			sampler3D _SDF;
 
 
-			float3 Raymarch9( float3 rayOrigin, float3 rayDirection, int numSteps, float stepSize, float densityScale, sampler3D Volume, float3 offset, int numLightSteps, float lightStepSize, float3 lightDir, float lightAsorb, float darknessThreshold, float transmittance )
+			float3 RaymarchAmpSDF9( float3 rayOrigin, float3 rayDirection, int numSteps, float stepSize, float densityScale, sampler3D Volume, float3 offset, int numLightSteps, float lightStepSize, float3 lightDir, float lightAsorb, float darknessThreshold, float transmittance, float3 boundsMin, float3 boundsMax )
 			{
 				 float denisty = 0;
 				float transmission = 0;
 				float lightAccumulation = 0;
 				float finalLight = 0;
+				float t = 0;
 				        for (int i = 0; i < numSteps; i++)
 				        {
-				            rayOrigin += rayDirection * stepSize;
-					float3 samplingPos = rayOrigin+offset;
-				            float sampleDensity = tex3D(Volume,samplingPos).r;
-				            denisty += sampleDensity * densityScale;
-					// Lighting
-					float3 lightRayOrigin = samplingPos;
-				 	for (int j = 0; j < numLightSteps; j++)
-				       	{
-						lightRayOrigin += lightDir * lightStepSize;
-						float lightDensity = tex3D(Volume, lightRayOrigin).r;
-						lightAccumulation += lightDensity * densityScale; 
-					}
-				float lightTransmission = exp(-lightAccumulation);
-				float shadow = darknessThreshold + lightTransmission * (1.0 - darknessThreshold);
-				finalLight += denisty * transmittance * shadow;
-				transmittance *= exp(-denisty*lightAsorb);
+				     float3 p = rayOrigin + rayDirection * t;
+					float4 posMip = float4(p,0);
+				     float d = tex3Dlod(Volume, posMip).r;
+				     if(d < 0.01) {
+				         return float4(p , 0); // we hit something, return its position as a color.
+				     }
+				     t += d *.5;
+				     if(t >= 1.0) {
+				         break; // we didn't hit anything
+				     }
 				        }
-				        transmission = exp(-denisty);
-				return float3(finalLight, transmission, transmittance);
+				 return float4(0,0,0,0);
 			}
 			
 
@@ -1000,7 +986,7 @@ Shader "RaymarchingAmpSDF"
 				int numSteps9 = _NumSteps;
 				float stepSize9 = _StepSize;
 				float densityScale9 = _densityScale;
-				sampler3D Volume9 = _Volume;
+				sampler3D Volume9 = _SDF;
 				float4 transform19 = mul(GetObjectToWorldMatrix(),float4( 0,0,0,1 ));
 				float3 offset9 = ( float4( _offset , 0.0 ) - transform19 ).xyz;
 				int numLightSteps9 = _numLightSteps;
@@ -1009,8 +995,10 @@ Shader "RaymarchingAmpSDF"
 				float lightAsorb9 = _LightAsorb;
 				float darknessThreshold9 = _DarknessThreshold;
 				float transmittance9 = _transmittance;
-				float3 localRaymarch9 = Raymarch9( rayOrigin9 , rayDirection9 , numSteps9 , stepSize9 , densityScale9 , Volume9 , offset9 , numLightSteps9 , lightStepSize9 , lightDir9 , lightAsorb9 , darknessThreshold9 , transmittance9 );
-				float3 break27 = localRaymarch9;
+				float3 boundsMin9 = float3( 0,0,0 );
+				float3 boundsMax9 = float3( 0,0,0 );
+				float3 localRaymarchAmpSDF9 = RaymarchAmpSDF9( rayOrigin9 , rayDirection9 , numSteps9 , stepSize9 , densityScale9 , Volume9 , offset9 , numLightSteps9 , lightStepSize9 , lightDir9 , lightAsorb9 , darknessThreshold9 , transmittance9 , boundsMin9 , boundsMax9 );
+				float3 break27 = localRaymarchAmpSDF9;
 				
 				float Alpha = ( ( 1.0 - break27.y ) * _AlphaScalar );
 				float AlphaClipThreshold = 0.5;
@@ -1036,45 +1024,45 @@ Shader "RaymarchingAmpSDF"
 }
 /*ASEBEGIN
 Version=18935
-0;206;2808;1165;2244.121;541.2297;1;True;False
+164;411;2808;1153;2036.489;416.7815;1.3;True;False
 Node;AmplifyShaderEditor.CommentaryNode;25;-1045.041,490.5001;Inherit;False;477.5408;601.1575;Tex and offset;4;19;17;18;16;;1,1,1,1;0;0
 Node;AmplifyShaderEditor.WorldPosInputsNode;5;-1189.5,-235;Inherit;False;0;4;FLOAT3;0;FLOAT;1;FLOAT;2;FLOAT;3
 Node;AmplifyShaderEditor.WorldSpaceCameraPos;6;-1253.5,-86;Inherit;False;0;4;FLOAT3;0;FLOAT;1;FLOAT;2;FLOAT;3
 Node;AmplifyShaderEditor.CommentaryNode;26;-810.9999,124;Inherit;False;243;346.6;Steps and density;3;7;8;12;;1,1,1,1;0;0
 Node;AmplifyShaderEditor.CommentaryNode;24;-862.835,1107.31;Inherit;False;283.6;654.7991;Lighting;6;30;28;21;22;23;29;;1,1,1,1;0;0
-Node;AmplifyShaderEditor.Vector3Node;17;-974.2405,720.8575;Inherit;False;Property;_offset;offset;4;0;Create;True;0;0;0;False;0;False;0,0,0;0.5,0.5,0.5;0;4;FLOAT3;0;FLOAT;1;FLOAT;2;FLOAT;3
+Node;AmplifyShaderEditor.Vector3Node;17;-974.2405,720.8575;Inherit;False;Property;_offset;offset;4;0;Create;True;0;0;0;False;0;False;0,0,0;0,0,0;0;4;FLOAT3;0;FLOAT;1;FLOAT;2;FLOAT;3
 Node;AmplifyShaderEditor.ObjectToWorldTransfNode;19;-995.0409,884.6573;Inherit;False;1;0;FLOAT4;0,0,0,1;False;5;FLOAT4;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
 Node;AmplifyShaderEditor.SimpleSubtractOpNode;10;-957.5,-108;Inherit;False;2;0;FLOAT3;0,0,0;False;1;FLOAT3;0,0,0;False;1;FLOAT3;0
-Node;AmplifyShaderEditor.RangedFloatNode;30;-733.038,1681.71;Inherit;False;Property;_transmittance;transmittance;9;0;Create;True;0;0;0;False;0;False;0;1;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.IntNode;7;-756.5,174;Inherit;False;Property;_NumSteps;NumSteps;0;0;Create;True;0;0;0;False;0;False;64;32;False;0;1;INT;0
+Node;AmplifyShaderEditor.RangedFloatNode;30;-733.038,1681.71;Inherit;False;Property;_transmittance;transmittance;9;0;Create;True;0;0;0;False;0;False;0;0;0;0;0;1;FLOAT;0
+Node;AmplifyShaderEditor.IntNode;7;-756.5,174;Inherit;False;Property;_NumSteps;NumSteps;0;0;Create;True;0;0;0;False;0;False;64;128;False;0;1;INT;0
+Node;AmplifyShaderEditor.TexturePropertyNode;16;-819.5001,540.4998;Inherit;True;Property;_SDF;SDF;3;0;Create;True;0;0;0;False;0;False;ccce97dfb33be7a4bbe15dc0a0275c94;None;False;white;LockedToTexture3D;Texture3D;-1;0;2;SAMPLER3D;0;SAMPLERSTATE;1
 Node;AmplifyShaderEditor.WorldSpaceLightDirHlpNode;23;-812.835,1358.709;Inherit;False;False;1;0;FLOAT;0;False;4;FLOAT3;0;FLOAT;1;FLOAT;2;FLOAT;3
-Node;AmplifyShaderEditor.RangedFloatNode;28;-742.5362,1510.709;Inherit;False;Property;_LightAsorb;LightAsorb;7;0;Create;True;0;0;0;False;0;False;0;2.03;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.SimpleSubtractOpNode;18;-735.0408,753.3575;Inherit;False;2;0;FLOAT3;0,0,0;False;1;FLOAT4;0,0,0,0;False;1;FLOAT4;0
-Node;AmplifyShaderEditor.RangedFloatNode;12;-760.9999,354.6;Inherit;False;Property;_densityScale;densityScale;2;0;Create;True;0;0;0;False;0;False;1;0.3;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.NormalizeNode;37;-808.6213,-99.72971;Inherit;False;False;1;0;FLOAT3;0,0,0;False;1;FLOAT3;0
-Node;AmplifyShaderEditor.TexturePropertyNode;16;-819.5001,540.4998;Inherit;True;Property;_Volume;Volume;3;0;Create;True;0;0;0;False;0;False;ccce97dfb33be7a4bbe15dc0a0275c94;ccce97dfb33be7a4bbe15dc0a0275c94;False;white;LockedToTexture3D;Texture3D;-1;0;2;SAMPLER3D;0;SAMPLERSTATE;1
-Node;AmplifyShaderEditor.RangedFloatNode;8;-750.5,267;Inherit;False;Property;_StepSize;StepSize;1;0;Create;True;0;0;0;False;0;False;0.02;0.02;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.RangedFloatNode;22;-784.3347,1242.809;Inherit;False;Property;_lightStepSize;lightStepSize;6;0;Create;True;0;0;0;False;0;False;0;0.06;0;0;0;1;FLOAT;0
-Node;AmplifyShaderEditor.RangedFloatNode;29;-795.7361,1592.41;Inherit;False;Property;_DarknessThreshold;DarknessThreshold;8;0;Create;True;0;0;0;False;0;False;0;0;0;0;0;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode;28;-742.5362,1510.709;Inherit;False;Property;_LightAsorb;LightAsorb;7;0;Create;True;0;0;0;False;0;False;0;0;0;0;0;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode;12;-760.9999,354.6;Inherit;False;Property;_densityScale;densityScale;2;0;Create;True;0;0;0;False;0;False;1;1;0;0;0;1;FLOAT;0
 Node;AmplifyShaderEditor.IntNode;21;-797.6345,1157.31;Inherit;False;Property;_numLightSteps;numLightSteps;5;0;Create;True;0;0;0;False;0;False;16;16;False;0;1;INT;0
-Node;AmplifyShaderEditor.CustomExpressionNode;9;-336.5,-88;Inherit;False; float denisty = 0@$float transmission = 0@$float lightAccumulation = 0@$float finalLight = 0@$        for (int i = 0@ i < numSteps@ i++)$        {$            rayOrigin += rayDirection * stepSize@$$	float3 samplingPos = rayOrigin+offset@$$            float sampleDensity = tex3D(Volume,samplingPos).r@$            denisty += sampleDensity * densityScale@$$	// Lighting$	float3 lightRayOrigin = samplingPos@$ 	for (int j = 0@ j < numLightSteps@ j++)$       	{$		lightRayOrigin += lightDir * lightStepSize@$		float lightDensity = tex3D(Volume, lightRayOrigin).r@$		lightAccumulation += lightDensity * densityScale@ $	}$$float lightTransmission = exp(-lightAccumulation)@$float shadow = darknessThreshold + lightTransmission * (1.0 - darknessThreshold)@$finalLight += denisty * transmittance * shadow@$transmittance *= exp(-denisty*lightAsorb)@$        }$$        transmission = exp(-denisty)@$return float3(finalLight, transmission, transmittance)@;3;Create;13;True;rayOrigin;FLOAT3;0,0,0;In;;Inherit;False;True;rayDirection;FLOAT3;0,0,0;In;;Inherit;False;True;numSteps;INT;0;In;;Inherit;False;True;stepSize;FLOAT;0;In;;Inherit;False;True;densityScale;FLOAT;0;In;;Inherit;False;True;Volume;SAMPLER3D;;In;;Inherit;False;True;offset;FLOAT3;0,0,0;In;;Inherit;False;True;numLightSteps;INT;0;In;;Inherit;False;True;lightStepSize;FLOAT;0;In;;Inherit;False;True;lightDir;FLOAT3;0,0,0;In;;Inherit;False;True;lightAsorb;FLOAT;0;In;;Inherit;False;True;darknessThreshold;FLOAT;0;In;;Inherit;False;True;transmittance;FLOAT;0;In;;Inherit;False;Raymarch;True;False;0;;False;13;0;FLOAT3;0,0,0;False;1;FLOAT3;0,0,0;False;2;INT;0;False;3;FLOAT;0;False;4;FLOAT;0;False;5;SAMPLER3D;;False;6;FLOAT3;0,0,0;False;7;INT;0;False;8;FLOAT;0;False;9;FLOAT3;0,0,0;False;10;FLOAT;0;False;11;FLOAT;0;False;12;FLOAT;0;False;1;FLOAT3;0
+Node;AmplifyShaderEditor.NormalizeNode;37;-808.6213,-99.72971;Inherit;False;False;1;0;FLOAT3;0,0,0;False;1;FLOAT3;0
+Node;AmplifyShaderEditor.RangedFloatNode;8;-750.5,267;Inherit;False;Property;_StepSize;StepSize;1;0;Create;True;0;0;0;False;0;False;0.02;-4.04;0;0;0;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode;22;-784.3347,1242.809;Inherit;False;Property;_lightStepSize;lightStepSize;6;0;Create;True;0;0;0;False;0;False;0;0;0;0;0;1;FLOAT;0
+Node;AmplifyShaderEditor.RangedFloatNode;29;-795.7361,1592.41;Inherit;False;Property;_DarknessThreshold;DarknessThreshold;8;0;Create;True;0;0;0;False;0;False;0;0;0;0;0;1;FLOAT;0
+Node;AmplifyShaderEditor.SimpleSubtractOpNode;18;-735.0408,753.3575;Inherit;False;2;0;FLOAT3;0,0,0;False;1;FLOAT4;0,0,0,0;False;1;FLOAT4;0
+Node;AmplifyShaderEditor.CustomExpressionNode;9;-336.5,-88;Inherit;False; float denisty = 0@$float transmission = 0@$float lightAccumulation = 0@$float finalLight = 0@$float t = 0@$        for (int i = 0@ i < numSteps@ i++)$        {$     float3 p = rayOrigin + rayDirection * t@$	float4 posMip = float4(p,0)@$     float d = tex3Dlod(Volume, posMip).r@$     if(d < 0.01) {$         return float4(p , 0)@ // we hit something, return its position as a color.$     }$     t += d *.5@$     if(t >= 1.0) {$         break@ // we didn't hit anything$     }$        }$$ return float4(0,0,0,0)@;3;Create;15;True;rayOrigin;FLOAT3;0,0,0;In;;Inherit;False;True;rayDirection;FLOAT3;0,0,0;In;;Inherit;False;True;numSteps;INT;0;In;;Inherit;False;True;stepSize;FLOAT;0;In;;Inherit;False;True;densityScale;FLOAT;0;In;;Inherit;False;True;Volume;SAMPLER3D;;In;;Inherit;False;True;offset;FLOAT3;0,0,0;In;;Inherit;False;True;numLightSteps;INT;0;In;;Inherit;False;True;lightStepSize;FLOAT;0;In;;Inherit;False;True;lightDir;FLOAT3;0,0,0;In;;Inherit;False;True;lightAsorb;FLOAT;0;In;;Inherit;False;True;darknessThreshold;FLOAT;0;In;;Inherit;False;True;transmittance;FLOAT;0;In;;Inherit;False;True;boundsMin;FLOAT3;0,0,0;In;;Inherit;False;True;boundsMax;FLOAT3;0,0,0;In;;Inherit;False;RaymarchAmpSDF;True;False;0;;False;15;0;FLOAT3;0,0,0;False;1;FLOAT3;0,0,0;False;2;INT;0;False;3;FLOAT;0;False;4;FLOAT;0;False;5;SAMPLER3D;;False;6;FLOAT3;0,0,0;False;7;INT;0;False;8;FLOAT;0;False;9;FLOAT3;0,0,0;False;10;FLOAT;0;False;11;FLOAT;0;False;12;FLOAT;0;False;13;FLOAT3;0,0,0;False;14;FLOAT3;0,0,0;False;1;FLOAT3;0
 Node;AmplifyShaderEditor.BreakToComponentsNode;27;-71.83575,-81.48961;Inherit;False;FLOAT3;1;0;FLOAT3;0,0,0;False;16;FLOAT;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4;FLOAT;5;FLOAT;6;FLOAT;7;FLOAT;8;FLOAT;9;FLOAT;10;FLOAT;11;FLOAT;12;FLOAT;13;FLOAT;14;FLOAT;15
 Node;AmplifyShaderEditor.RangedFloatNode;35;47.41541,95.02319;Inherit;False;Property;_AlphaScalar;AlphaScalar;12;0;Create;True;0;0;0;False;0;False;1;1;0;1;0;1;FLOAT;0
 Node;AmplifyShaderEditor.OneMinusNode;31;49.41541,-20.97681;Inherit;False;1;0;FLOAT;0;False;1;FLOAT;0
-Node;AmplifyShaderEditor.LerpOp;32;149.4154,-300.9768;Inherit;False;3;0;COLOR;0,0,0,0;False;1;COLOR;0,0,0,0;False;2;FLOAT;0;False;1;COLOR;0
+Node;AmplifyShaderEditor.ColorNode;34;-84.58459,-295.9768;Inherit;False;Property;_LightCol;LightCol;11;0;Create;True;0;0;0;False;0;False;1,0,0,0;0.745283,0.745283,0.745283,0;True;0;5;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
 Node;AmplifyShaderEditor.SimpleMultiplyOpNode;36;368.4154,29.02319;Inherit;False;2;2;0;FLOAT;0;False;1;FLOAT;0;False;1;FLOAT;0
-Node;AmplifyShaderEditor.ColorNode;34;-84.58459,-295.9768;Inherit;False;Property;_LightCol;LightCol;11;0;Create;True;0;0;0;False;0;False;1,0,0,0;1,1,1,0;True;0;5;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
-Node;AmplifyShaderEditor.ColorNode;33;-83.58459,-474.9768;Inherit;False;Property;_ShadeCol;ShadeCol;10;0;Create;True;0;0;0;False;0;False;0,0,0,0;0.15,0.15,0.15,0;True;0;5;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
+Node;AmplifyShaderEditor.ColorNode;33;-83.58459,-474.9768;Inherit;False;Property;_ShadeCol;ShadeCol;10;0;Create;True;0;0;0;False;0;False;0,0,0,0;0,0,0,0;True;0;5;COLOR;0;FLOAT;1;FLOAT;2;FLOAT;3;FLOAT;4
+Node;AmplifyShaderEditor.LerpOp;32;149.4154,-300.9768;Inherit;False;3;0;COLOR;0,0,0,0;False;1;COLOR;0,0,0,0;False;2;FLOAT;0;False;1;COLOR;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;2;0,0;Float;False;False;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;New Amplify Shader;2992e84f91cbeb14eab234972e07ea9d;True;ShadowCaster;0;2;ShadowCaster;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;False;False;True;False;False;False;False;0;False;-1;False;False;False;False;False;False;False;False;False;True;1;False;-1;True;3;False;-1;False;True;1;LightMode=ShadowCaster;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;4;0,0;Float;False;False;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;New Amplify Shader;2992e84f91cbeb14eab234972e07ea9d;True;Meta;0;4;Meta;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;2;False;-1;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=Meta;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
-Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;1;568.3,-93.1;Float;False;True;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;RaymarchingAmpSDF;2992e84f91cbeb14eab234972e07ea9d;True;Forward;0;1;Forward;8;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Transparent=RenderType;Queue=Transparent=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;True;1;5;False;-1;10;False;-1;1;1;False;-1;10;False;-1;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;-1;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;True;2;False;-1;True;3;False;-1;True;True;0;False;-1;0;False;-1;True;1;LightMode=UniversalForward;False;False;0;Hidden/InternalErrorShader;0;0;Standard;22;Surface;1;638232038898469436;  Blend;0;0;Two Sided;1;0;Cast Shadows;1;0;  Use Shadow Threshold;0;0;Receive Shadows;1;0;GPU Instancing;1;0;LOD CrossFade;0;0;Built-in Fog;0;0;DOTS Instancing;0;0;Meta Pass;0;0;Extra Pre Pass;0;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,-1;0;  Type;0;0;  Tess;16,False,-1;0;  Min;10,False,-1;0;  Max;25,False,-1;0;  Edge Length;16,False,-1;0;  Max Displacement;25,False,-1;0;Vertex Position,InvertActionOnDeselection;1;0;0;5;False;True;True;True;False;False;;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;0;0,0;Float;False;False;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;New Amplify Shader;2992e84f91cbeb14eab234972e07ea9d;True;ExtraPrePass;0;0;ExtraPrePass;5;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;True;1;1;False;-1;0;False;-1;0;1;False;-1;0;False;-1;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;True;True;True;True;0;False;-1;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;True;1;False;-1;True;3;False;-1;True;True;0;False;-1;0;False;-1;True;0;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
+Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;4;0,0;Float;False;False;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;New Amplify Shader;2992e84f91cbeb14eab234972e07ea9d;True;Meta;0;4;Meta;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;2;False;-1;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;1;LightMode=Meta;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
 Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;3;0,0;Float;False;False;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;New Amplify Shader;2992e84f91cbeb14eab234972e07ea9d;True;DepthOnly;0;3;DepthOnly;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;False;False;True;False;False;False;False;0;False;-1;False;False;False;False;False;False;False;False;False;True;1;False;-1;False;False;True;1;LightMode=DepthOnly;False;False;0;Hidden/InternalErrorShader;0;0;Standard;0;False;0
+Node;AmplifyShaderEditor.TemplateMultiPassMasterNode;1;568.3,-93.1;Float;False;True;-1;2;UnityEditor.ShaderGraphUnlitGUI;0;3;RaymarchingAmpSDF;2992e84f91cbeb14eab234972e07ea9d;True;Forward;0;1;Forward;8;False;False;False;False;False;False;False;False;False;False;False;False;True;0;False;-1;False;True;0;False;-1;False;False;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;False;False;False;True;3;RenderPipeline=UniversalPipeline;RenderType=Opaque=RenderType;Queue=Geometry=Queue=0;True;0;True;17;d3d9;d3d11;glcore;gles;gles3;metal;vulkan;xbox360;xboxone;xboxseries;ps4;playstation;psp2;n3ds;wiiu;switch;nomrt;0;False;True;1;1;False;-1;0;False;-1;1;1;False;-1;0;False;-1;False;False;False;False;False;False;False;False;False;False;False;False;False;False;True;True;True;True;True;0;False;-1;False;False;False;False;False;False;False;True;False;255;False;-1;255;False;-1;255;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;7;False;-1;1;False;-1;1;False;-1;1;False;-1;False;True;1;False;-1;True;3;False;-1;True;True;0;False;-1;0;False;-1;True;1;LightMode=UniversalForward;False;False;0;Hidden/InternalErrorShader;0;0;Standard;22;Surface;0;638237037095619471;  Blend;0;0;Two Sided;1;0;Cast Shadows;1;0;  Use Shadow Threshold;0;0;Receive Shadows;1;0;GPU Instancing;1;0;LOD CrossFade;0;0;Built-in Fog;0;0;DOTS Instancing;0;0;Meta Pass;0;0;Extra Pre Pass;0;0;Tessellation;0;0;  Phong;0;0;  Strength;0.5,False,-1;0;  Type;0;0;  Tess;16,False,-1;0;  Min;10,False,-1;0;  Max;25,False,-1;0;  Edge Length;16,False,-1;0;  Max Displacement;25,False,-1;0;Vertex Position,InvertActionOnDeselection;1;0;0;5;False;True;True;True;False;False;;False;0
 WireConnection;10;0;5;0
 WireConnection;10;1;6;0
+WireConnection;37;0;10;0
 WireConnection;18;0;17;0
 WireConnection;18;1;19;0
-WireConnection;37;0;10;0
 WireConnection;9;0;5;0
 WireConnection;9;1;37;0
 WireConnection;9;2;7;0
@@ -1090,12 +1078,12 @@ WireConnection;9;11;29;0
 WireConnection;9;12;30;0
 WireConnection;27;0;9;0
 WireConnection;31;0;27;1
+WireConnection;36;0;31;0
+WireConnection;36;1;35;0
 WireConnection;32;0;33;0
 WireConnection;32;1;34;0
 WireConnection;32;2;27;0
-WireConnection;36;0;31;0
-WireConnection;36;1;35;0
 WireConnection;1;2;32;0
 WireConnection;1;3;36;0
 ASEEND*/
-//CHKSM=BB1971D7E5DE10470A15F64E5474DC58E380A16B
+//CHKSM=398583EFDA8EA81B7924E63B5563B867EF480CD2

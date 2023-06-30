@@ -19,6 +19,8 @@ public class SDFBakerCompute : MonoBehaviour
     public float boundsExpand = .1f;
 
     private Bounds sdfBounds;
+
+    public Material mat;
     
     [ContextMenu("Bake")]
     void Bake()
@@ -43,6 +45,7 @@ public class SDFBakerCompute : MonoBehaviour
             name = "SDF Baked"
         };
         outputTexture.Create();
+        mat.SetTexture("_SDF", outputTexture);
         
         // Set shader properties
         sdfShader.SetTexture(0, "Result", outputTexture);
@@ -125,3 +128,32 @@ public class SDFBakerCompute : MonoBehaviour
         triangleBuffer.Dispose();
     }
 }
+
+/*
+ *
+ *
+float denisty = 0;
+float transmission = 0;
+float lightAccumulation = 0;
+float finalLight = 0;
+float t = 0;
+
+for (int i = 0; i < numSteps; i++)
+{
+    float3 p = rayOrigin + rayDirection * t;
+    float4 posMip = float4(p,0);
+    float d = tex3Dlod(Volume, posMip).r;
+    if(d < 0.01) 
+    {
+        return float4(p , 0); // we hit something, return its position as a color.
+    }
+    t += d; // scaling down gives better results
+    
+    if(t >= 1.0) 
+    {
+        break; // we didn't hit anything
+    }
+}
+
+ return float4(0,0,0,0);
+ */
