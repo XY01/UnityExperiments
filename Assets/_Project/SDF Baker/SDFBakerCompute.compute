@@ -97,18 +97,27 @@ void SDF(uint3 id : SV_DispatchThreadID)
 {
     float u = (id.x / width);
     float v = (id.y / height);
-    float w = (id.z / depth); 
+    float w = (id.z / depth);
+
+    float x = lerp(boundsMin.x, boundsMax.x, u);
+    float y = lerp(boundsMin.y, boundsMax.y, v);
+    float z = lerp(boundsMin.z, boundsMax.z, w);
+
+    /////////////////////////
+    // Testing out position - Working
+     float sphereTest = distance(float3(x,y,z), float3(0,0,0));
+    // Result[id] = float4(sphere,sphere,sphere,1);
     
-    // float3 pos = ...; // compute position based on id
-    //
-    // float minDist = INFINITY;
-    // for (uint i = 0; i < triangleBuffer.Length / 3; i++)
-    // {
-    //     Triangle tri = GetTriangle(i);
-    //     float dist = DistanceToTriangle(pos, tri);
-    //     minDist = min(minDist, dist);
-    // }
+    float3 pos = float3(x,y,z); // compute position based on id
+    
+    float minDist = 9000;
+    for (uint i = 0; i < triangleBuffer.Length / 3; i++)
+    {
+        Triangle tri = GetTriangle(i);
+        float dist = DistanceToTriangle(pos, tri);
+        minDist = min(minDist, dist);
+    }
 
     // Write SDF value to output
-    Result[id] = float4(u,v,w,1);
+    Result[id] = float4(minDist,0,0,1);
 }

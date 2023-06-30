@@ -13,7 +13,9 @@ public class SDFBakerCompute : MonoBehaviour
 
     private ComputeBuffer vertexBuffer;
     private ComputeBuffer triangleBuffer;
-    void Start()
+    
+    [ContextMenu("Bake")]
+    void Bake()
     {
         // Init render texture
         outputTexture = new RenderTexture(resolution,resolution,0)  // Init render texture, 0)
@@ -37,15 +39,21 @@ public class SDFBakerCompute : MonoBehaviour
         sdfShader.SetInt("depth", outputTexture.volumeDepth);
 
         // Set the target mesh bounds
-        Bounds sdfBounds = targetMesh.bounds;
-        sdfBounds.Expand(.1f);
-        sdfShader.SetVector("boundsMin", targetMesh.bounds.min);
-        sdfShader.SetVector("boundsMax", targetMesh.bounds.max);
+        Bounds sdfBounds = new Bounds(targetMesh.bounds.center, targetMesh.bounds.size);
+        sdfBounds.Expand(.8f);
+        sdfShader.SetVector("boundsMin", sdfBounds.min);
+        sdfShader.SetVector("boundsMax", sdfBounds.max);
         
         Mesh mesh = targetMesh.GetComponent<MeshFilter>().mesh;
 
         // Convert mesh data to arrays
+        // Convert verts to world space
         Vector3[] vertices = mesh.vertices;
+        for (int i = 0; i < vertices.Length; i++)
+        {
+            vertices[i] = targetMesh.transform.TransformPoint(vertices[i]);
+        }
+        
         int[] triangles = mesh.triangles;
 
         // Create compute buffers
