@@ -23,6 +23,10 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
+    - _SDF:
+        m_Texture: {fileID: 0}
+        m_Scale: {x: 1, y: 1}
+        m_Offset: {x: 0, y: 0}
     - _Volume:
         m_Texture: {fileID: 11700000, guid: ccce97dfb33be7a4bbe15dc0a0275c94, type: 3}
         m_Scale: {x: 1, y: 1}
@@ -33,15 +37,15 @@ Material:
     - _AlphaScalar: 1
     - _DarknessThreshold: 0
     - _LightAsorb: 0
-    - _NumSteps: 64
-    - _StepSize: 0.02
+    - _NumSteps: 128
+    - _StepSize: -4.04
     - _densityScale: 1
     - _lightStepSize: 0
     - _numLightSteps: 16
     - _transmittance: 0
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _LightCol: {r: 1, g: 0, b: 0, a: 0}
+    - _LightCol: {r: 0.745283, g: 0.745283, b: 0.745283, a: 0}
     - _ShadeCol: {r: 0, g: 0, b: 0, a: 0}
     - _offset: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []
