@@ -38,14 +38,17 @@ Material:
     - _DarknessThreshold: 0
     - _LightAsorb: 0
     - _NumSteps: 128
-    - _StepSize: -4.04
+    - _StepScalar: 1
+    - _StepSize: 1
     - _densityScale: 1
     - _lightStepSize: 0
     - _numLightSteps: 16
     - _transmittance: 0
     m_Colors:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
-    - _LightCol: {r: 0.745283, g: 0.745283, b: 0.745283, a: 0}
+    - _LightCol: {r: 1, g: 0.033018887, b: 0.033018887, a: 0}
     - _ShadeCol: {r: 0, g: 0, b: 0, a: 0}
-    - _offset: {r: 0, g: 0, b: 0, a: 0}
+    - _boundsMax: {r: 2.25, g: 1.15, b: 1.15, a: 0}
+    - _boundsMin: {r: -2.25, g: -1.15, b: -1.15, a: 0}
+    - _offset: {r: 2.25, g: 1.15, b: 1.15, a: 0}
   m_BuildTextureStacks: []

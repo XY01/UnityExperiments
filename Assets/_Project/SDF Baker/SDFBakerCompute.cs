@@ -18,7 +18,8 @@ public class SDFBakerCompute : MonoBehaviour
     [Range(0,1)]
     public float boundsExpand = .1f;
 
-    private Bounds sdfBounds;
+    public bool adjustBoundToMeshes = false;
+    public Bounds sdfBounds;
 
     public Material mat;
     
@@ -54,14 +55,17 @@ public class SDFBakerCompute : MonoBehaviour
         sdfShader.SetInt("depth", outputTexture.volumeDepth);
 
         // Set the target mesh bounds
-        sdfBounds = targetMeshes[0].bounds;
+        if(adjustBoundToMeshes)
+            sdfBounds = targetMeshes[0].bounds;
         
         List<Vector3> vertPosList = new List<Vector3>();
         List<int> trianglesList = new List<int>();
         int triOffset = 0;
         for (int i = 0; i < targetMeshes.Length; i++)
         {
-            sdfBounds.Encapsulate(targetMeshes[i].bounds);
+            if(adjustBoundToMeshes)
+                sdfBounds.Encapsulate(targetMeshes[i].bounds);
+            
             Mesh mesh = targetMeshes[i].GetComponent<MeshFilter>().mesh;
             
             Vector3[] vertices = mesh.vertices;
@@ -77,7 +81,8 @@ public class SDFBakerCompute : MonoBehaviour
             triOffset += vertices.Length;
         }
         
-        sdfBounds.Expand(boundsExpand);
+        if(adjustBoundToMeshes)
+            sdfBounds.Expand(boundsExpand);
         
         sdfShader.SetVector("boundsMin", sdfBounds.min);
         sdfShader.SetVector("boundsMax", sdfBounds.max);
