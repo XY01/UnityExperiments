@@ -2,7 +2,11 @@
 #pragma kernel ValueNoise
 #pragma kernel WorleyNoise
 
+#include "HLSLExtension.hlsl"
 
+
+//---- VARIABLES
+//
 RWTexture2D<float> OutputTex;
 
 float freq = 4;
@@ -13,41 +17,14 @@ float valueScalar = 1;
 
 float time;
 
-float noise2x1(float2 p)
-{
-    float random = dot(p, float2(23.3,78.324));
-    random = sin(random);
-    random = random * 43758.5453;
-    random = frac(random*63.71);
-    return  random;
-}
 
-float2 noise2x2(float2 p)
-{
-    float x = dot(p, float2(123.4, 234.5));
-    float y = dot(p, float2(345.6, 456.7));
-    float2 noise = float2(x,y);
-    noise = sin(noise);
-    noise *= 43758.5453;
-    noise = frac(noise);
-    return  noise;
-}
-
+//---- PRAGMAS
+//
 [numthreads(8,8,1)]
 void WhiteNoise (uint3 id : SV_DispatchThreadID)
 {
     OutputTex[id.xy] = noise2x1(id.xy);
 }
-
-float2 pixIndexToGridUV(float freq, uint2 pixelIndex, uint res)
-{
-    float2 uv = float2((float)pixelIndex.x/resolution,
-                      (float)pixelIndex.y/resolution);
-    
-    float2 scaledUv = uv * freq;
-    return float2(frac(scaledUv.x), frac(scaledUv.y));
-}
-
 
 
 [numthreads(8,8,1)]
@@ -98,20 +75,28 @@ void WorleyNoise (uint3 id : SV_DispatchThreadID)
             float2 adjGridCoord = float2(i,j);            
 
             // Get noise sample in adjacent grid // DEBUG - Stable
-            float2 noise = noise2x2(gridID + adjGridCoord);
+            float2 noise = noise2x2(gridID + adjGridCoord + 1.23);
 
             // Add sin of noise ot both components (modulates X and Y kind of like the ABC logo)
             float2 pointOnAdjGrid = adjGridCoord + sin(time * noise) * .5;
-            
+            float3 point3D = float3(pointOnAdjGrid, sin(time * noise.x) * 1);
+            float3 centeredGrid3D = float3(centeredGridUV, 0);
+
             // Get min dist to point
-            float dist = length(centeredGridUV - pointOnAdjGrid);
+            //float dist = length(centeredGridUV - pointOnAdjGrid);
+            float dist = length(point3D - centeredGrid3D);
+            //float dist = ManhattanDistance(centeredGridUV, pointOnAdjGrid);
+            //float dist = ChebyshevDistance(centeredGridUV, pointOnAdjGrid);
+            //float dist = MinkowskiDistance(centeredGridUV, pointOnAdjGrid, .5f);
+            //float dist = HammingDistance(centeredGridUV, pointOnAdjGrid);
             minDistFromPixel = min(dist, minDistFromPixel);
         }
     }
+
 
     // Noise values aren't the same at corner sample
     if(additionalLayer)
         OutputTex[id.xy] += minDistFromPixel;
     else
-        OutputTex[id.xy] = minDistFromPixel;   
+        OutputTex[id.xy] = 1-minDistFromPixel;   
 }
