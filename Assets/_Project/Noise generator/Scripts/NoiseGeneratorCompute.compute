@@ -1,0 +1,117 @@
+#pragma kernel WhiteNoise
+#pragma kernel ValueNoise
+#pragma kernel WorleyNoise
+
+
+RWTexture2D<float> OutputTex;
+
+float freq = 4;
+uint resolution = 512;
+
+bool additionalLayer = false;
+float valueScalar = 1;
+
+float time;
+
+float noise2x1(float2 p)
+{
+    float random = dot(p, float2(23.3,78.324));
+    random = sin(random);
+    random = random * 43758.5453;
+    random = frac(random*63.71);
+    return  random;
+}
+
+float2 noise2x2(float2 p)
+{
+    float x = dot(p, float2(123.4, 234.5));
+    float y = dot(p, float2(345.6, 456.7));
+    float2 noise = float2(x,y);
+    noise = sin(noise);
+    noise *= 43758.5453;
+    noise = frac(noise);
+    return  noise;
+}
+
+[numthreads(8,8,1)]
+void WhiteNoise (uint3 id : SV_DispatchThreadID)
+{
+    OutputTex[id.xy] = noise2x1(id.xy);
+}
+
+float2 pixIndexToGridUV(float freq, uint2 pixelIndex, uint res)
+{
+    float2 uv = float2((float)pixelIndex.x/resolution,
+                      (float)pixelIndex.y/resolution);
+    
+    float2 scaledUv = uv * freq;
+    return float2(frac(scaledUv.x), frac(scaledUv.y));
+}
+
+
+
+[numthreads(8,8,1)]
+void ValueNoise (uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = float2((float)id.x/resolution,
+                        (float)id.y/resolution);
+    
+    float2 scaledUv = uv * freq;
+    float2 gridUV = float2(frac(scaledUv.x), frac(scaledUv.y));
+    gridUV = smoothstep(0,1,gridUV);
+    float2 gridID = floor(scaledUv);
+    
+    // Get noise values at grid corners
+    float botLeft = noise2x1(gridID);
+    float botRight = noise2x1(gridID+float2(1.0,0));
+    float topLeft = noise2x1(gridID+float2(0.0,1.0));
+    float topRight = noise2x1(gridID+float2(1.0,1.0));
+
+    float botLerp = lerp(botLeft, botRight, gridUV.x);
+    float topLerp = lerp(topLeft, topRight, gridUV.x);
+    float topBotLerp = lerp(botLerp, topLerp, gridUV.y);
+
+    // Noise values aren't the same at corner sample
+    if(additionalLayer)
+        OutputTex[id.xy] += topBotLerp * valueScalar;
+    else
+        OutputTex[id.xy] = topBotLerp;    
+}
+
+[numthreads(8,8,1)]
+void WorleyNoise (uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = float2((float)id.x/resolution,
+                        (float)id.y/resolution);
+       
+    float2 scaledUv = uv * freq;
+    float2 gridID = floor(scaledUv);
+    float2 centeredGridUV = frac(scaledUv) - 0.5;
+
+    float minDistFromPixel = 1000;
+    
+    for(int i = -1.0; i <= 1.0; i++)
+    {
+        for(int j = -1.0; j <= 1.0; j++)
+        {
+            // not sure why i have to scale by freq here
+            float2 adjGridCoord = float2(i,j);            
+
+            // Get noise sample in adjacent grid // DEBUG - Stable
+            float2 noise = noise2x2(gridID + adjGridCoord);
+
+            // Add sin of noise ot both components (modulates X and Y kind of like the ABC logo)
+            float2 pointOnAdjGrid = adjGridCoord + sin(time * noise) * .5;
+            
+            // Get min dist to point
+            float dist = length(centeredGridUV - pointOnAdjGrid);
+            minDistFromPixel = min(dist, minDistFromPixel);
+        }
+    }
+
+    // Noise values aren't the same at corner sample
+    if(additionalLayer)
+        OutputTex[id.xy] += minDistFromPixel;
+    else
+        OutputTex[id.xy] = minDistFromPixel;   
+}
