@@ -1,3 +1,4 @@
+using System.Data.Common;
 using UnityEngine;
 using UnityEditor;
 using System.IO;
@@ -8,6 +9,7 @@ public enum Noise
     WhiteNoise,
     ValueNoise,
     WorleyNoise,
+    PerlinNoise,
 }
     
 // TODO: 
@@ -15,6 +17,10 @@ public enum Noise
 public class NoiseGeneratorWindow : EditorWindow
 {
     private int resolution = 512;
+    private bool tiling = false;
+    private int octaves = 3;
+    private float persistance = .5f;
+    private float lacunarity = 3;
     private Noise noisetype = Noise.WhiteNoise;
     private string fileName = "NoiseTexture";
     private ComputeShader computeShader;
@@ -35,11 +41,21 @@ public class NoiseGeneratorWindow : EditorWindow
         GUILayout.Label("Noise Generator Settings", EditorStyles.boldLabel);
 
         resolution = EditorGUILayout.IntField("Resolution", resolution);
+        tiling = EditorGUILayout.Toggle("Tiling", tiling);
+        EditorGUILayout.Space(10);
+        noisetype = (Noise)EditorGUILayout.Popup("Noise Type:", (int)noisetype, System.Enum.GetNames(typeof(Noise)));
+        octaves = EditorGUILayout.IntField("Octaves", octaves);
+        freq = EditorGUILayout.IntField("Freq", freq);
+        octaves = Mathf.Max(octaves, 1);
+        persistance = EditorGUILayout.Slider("Persistance (Amp Scalar)",persistance, 0,1);
+        lacunarity = EditorGUILayout.FloatField("Lacunarity (Freq scalar)", lacunarity);
+        lacunarity = Mathf.Max(lacunarity, 1);
+        EditorGUILayout.Space(10);
         fileName = EditorGUILayout.TextField("File Name", fileName);
         computeShader = EditorGUILayout.ObjectField("Compute Shader", computeShader, typeof(ComputeShader), false) as ComputeShader;
 
-        noisetype = (Noise)EditorGUILayout.Popup("Noise Type:", (int)noisetype, System.Enum.GetNames(typeof(Noise)));
-        freq = EditorGUILayout.IntField("Freq", freq);
+      
+      
         
         if (GUILayout.Button("Generate Noise"))
         {
@@ -67,7 +83,7 @@ public class NoiseGeneratorWindow : EditorWindow
             return;
         }
 
-        renderTexture = new RenderTexture(resolution, resolution, 0, RenderTextureFormat.R8);
+        renderTexture = new RenderTexture(resolution, resolution, 0, RenderTextureFormat.RFloat);
         renderTexture.enableRandomWrite = true;
         renderTexture.Create();
 
@@ -77,20 +93,34 @@ public class NoiseGeneratorWindow : EditorWindow
         
         computeShader.SetFloat("freq", freq);
         computeShader.SetFloat("time", Time.time);
+        
+        computeShader.SetInt("octaves", octaves);
+        computeShader.SetFloat("persistance", persistance);
+        computeShader.SetFloat("lacunarity", lacunarity);
+        computeShader.SetBool("tiling", tiling);
         computeShader.SetFloat("valueScalar", 1);
         computeShader.SetBool("additionalLayer", false);
         computeShader.Dispatch(kernelHandle, renderTexture.width / 8, renderTexture.height / 8, 1);
-        //
-        // computeShader.SetFloat("freq", freq*4);
-        // computeShader.SetFloat("valueScalar", .5f);
-        // computeShader.SetBool("additionalLayer", true);
-        // computeShader.Dispatch(kernelHandle, renderTexture.width / 8, renderTexture.height / 8, 1);
-        //
-        // computeShader.SetFloat("freq", freq*8);
-        // computeShader.SetFloat("valueScalar", .25f);
-        // computeShader.SetBool("additionalLayer", true);
-        // computeShader.Dispatch(kernelHandle, renderTexture.width / 8, renderTexture.height / 8, 1);
-
+        
+        
+        int minMaxKernel = computeShader.FindKernel("MinMax");
+        ComputeBuffer minMaxBuffer = new ComputeBuffer(2, 4, ComputeBufferType.Default);
+        minMaxBuffer.SetData(new float[]{1000,0});
+        computeShader.SetBuffer(minMaxKernel,"minMaxBuffer", minMaxBuffer);
+        computeShader.SetInt("maxVal", 0);
+        computeShader.SetTexture(minMaxKernel, "OutputTex", renderTexture);
+        computeShader.Dispatch(minMaxKernel, renderTexture.width, renderTexture.height, 1);
+        
+        
+        
+        int remapKernel = computeShader.FindKernel("Remap");
+        computeShader.SetBuffer(remapKernel,"minMaxBuffer", minMaxBuffer);
+        computeShader.SetTexture(remapKernel, "OutputTex", renderTexture);
+        computeShader.Dispatch(remapKernel, renderTexture.width / 8, renderTexture.height / 8, 1);
+        
+        float[] maxData = new float[1];
+        minMaxBuffer.GetData(maxData);
+        Debug.Log(maxData[0]);
         
         SaveTextureAsPNG(renderTexture, fileName);
     }

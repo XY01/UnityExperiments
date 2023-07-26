@@ -1,6 +1,11 @@
 #pragma kernel WhiteNoise
 #pragma kernel ValueNoise
 #pragma kernel WorleyNoise
+#pragma kernel PerlinNoise
+
+#pragma kernel MinMax
+#pragma kernel Remap
+
 
 #include "HLSLExtension.hlsl"
 
@@ -11,11 +16,18 @@ RWTexture2D<float> OutputTex;
 
 float freq = 4;
 uint resolution = 512;
+uint octaves = 1;
+
+// Scalar on aplitude for each octave
+float persistance;
+// Scalar on freq for each octave
+float lacunarity;
 
 bool additionalLayer = false;
 float valueScalar = 1;
 
 float time;
+bool tiling;
 
 
 //---- PRAGMAS
@@ -30,73 +42,86 @@ void WhiteNoise (uint3 id : SV_DispatchThreadID)
 [numthreads(8,8,1)]
 void ValueNoise (uint3 id : SV_DispatchThreadID)
 {
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+    
     float2 uv = float2((float)id.x/resolution,
                         (float)id.y/resolution);
-    
-    float2 scaledUv = uv * freq;
-    float2 gridUV = float2(frac(scaledUv.x), frac(scaledUv.y));
-    gridUV = smoothstep(0,1,gridUV);
-    float2 gridID = floor(scaledUv);
-    
-    // Get noise values at grid corners
-    float botLeft = noise2x1(gridID);
-    float botRight = noise2x1(gridID+float2(1.0,0));
-    float topLeft = noise2x1(gridID+float2(0.0,1.0));
-    float topRight = noise2x1(gridID+float2(1.0,1.0));
 
-    float botLerp = lerp(botLeft, botRight, gridUV.x);
-    float topLerp = lerp(topLeft, topRight, gridUV.x);
-    float topBotLerp = lerp(botLerp, topLerp, gridUV.y);
 
-    // Noise values aren't the same at corner sample
-    if(additionalLayer)
-        OutputTex[id.xy] += topBotLerp * valueScalar;
-    else
-        OutputTex[id.xy] = topBotLerp;    
+    for(uint i = 0; i < octaves; i++)
+    {
+        float noiseSample = valueNoise(uv, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
+    OutputTex[id.xy] = noiseHeight;    
 }
 
 [numthreads(8,8,1)]
 void WorleyNoise (uint3 id : SV_DispatchThreadID)
 {
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+    
     float2 uv = float2((float)id.x/resolution,
                         (float)id.y/resolution);
-       
-    float2 scaledUv = uv * freq;
-    float2 gridID = floor(scaledUv);
-    float2 centeredGridUV = frac(scaledUv) - 0.5;
 
-    float minDistFromPixel = 1000;
-    
-    for(int i = -1.0; i <= 1.0; i++)
+   
+    for(uint i = 0; i < octaves; i++)
     {
-        for(int j = -1.0; j <= 1.0; j++)
-        {
-            // not sure why i have to scale by freq here
-            float2 adjGridCoord = float2(i,j);            
+        float noiseSample = worleyNoise(uv, cachedFreq, time);
+        noiseHeight += noiseSample * amplitude;
 
-            // Get noise sample in adjacent grid // DEBUG - Stable
-            float2 noise = noise2x2(gridID + adjGridCoord + 1.23);
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
 
-            // Add sin of noise ot both components (modulates X and Y kind of like the ABC logo)
-            float2 pointOnAdjGrid = adjGridCoord + sin(time * noise) * .5;
-            float3 point3D = float3(pointOnAdjGrid, sin(time * noise.x) * 1);
-            float3 centeredGrid3D = float3(centeredGridUV, 0);
+    OutputTex[id.xy] = noiseHeight;     
+}
 
-            // Get min dist to point
-            //float dist = length(centeredGridUV - pointOnAdjGrid);
-            float dist = length(point3D - centeredGrid3D);
-            //float dist = ManhattanDistance(centeredGridUV, pointOnAdjGrid);
-            //float dist = ChebyshevDistance(centeredGridUV, pointOnAdjGrid);
-            //float dist = MinkowskiDistance(centeredGridUV, pointOnAdjGrid, .5f);
-            //float dist = HammingDistance(centeredGridUV, pointOnAdjGrid);
-            minDistFromPixel = min(dist, minDistFromPixel);
-        }
+[numthreads(8,8,1)]
+void PerlinNoise (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+    
+    float2 uv = float2((float)id.x/resolution,
+                        (float)id.y/resolution);
+
+    
+    for(uint i = 0; i < octaves; i++)
+    {
+        float noiseSample = perlinNoise(uv, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
     }
 
+    OutputTex[id.xy] = noiseHeight;
+}
 
-    // Noise values aren't the same at corner sample
-    if(additionalLayer)
-        OutputTex[id.xy] += minDistFromPixel;
-    else
-        OutputTex[id.xy] = 1-minDistFromPixel;   
+
+RWStructuredBuffer<float> minMaxBuffer;
+
+[numthreads(1,1,1)]
+void MinMax (uint3 id : SV_DispatchThreadID) 
+{
+    minMaxBuffer[0] = min(minMaxBuffer[0], OutputTex[id.xy]);
+    minMaxBuffer[1] = max(minMaxBuffer[1], OutputTex[id.xy]);
+}
+
+[numthreads(8,8,1)]
+void Remap (uint3 id : SV_DispatchThreadID)
+{
+    float texel = OutputTex[id.xy];
+    float newValue = inverseLerp(minMaxBuffer[0],minMaxBuffer[1], texel);
+    OutputTex[id.xy] = newValue;
 }
