@@ -75,7 +75,7 @@ void WorleyNoise (uint3 id : SV_DispatchThreadID)
    
     for(uint i = 0; i < octaves; i++)
     {
-        float noiseSample = worleyNoise(uv, cachedFreq, time);
+        float noiseSample = worleyNoise(uv, cachedFreq, time, tiling);
         noiseHeight += noiseSample * amplitude;
 
         cachedFreq *= lacunarity;

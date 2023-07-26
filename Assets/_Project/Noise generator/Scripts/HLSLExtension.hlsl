@@ -104,7 +104,7 @@ float valueNoise(float2 uv, float freq, float time, bool tiling)
 
 // Also Voronoi noise. Currently offsetting in the z to get better depth
 // Change to 2D for more traditional worley
-float worleyNoise(float2 uv, float freq, float time)
+float worleyNoise(float2 uv, float freq, float time, bool tiling)
 {
     float2 scaledUv = uv * freq;
     float2 gridID = floor(scaledUv);
@@ -116,11 +116,16 @@ float worleyNoise(float2 uv, float freq, float time)
     {
         for(int j = -1.0; j <= 1.0; j++)
         {
-            // not sure why i have to scale by freq here
             float2 adjGridCoord = float2(i,j);            
 
             // Get noise sample in adjacent grid // DEBUG - Stable
-            float2 noise = noise2x2(gridID + adjGridCoord + 1.23);
+            float2 adjGridID = gridID + adjGridCoord + 10;
+            if(tiling)
+            {
+                adjGridID.x %= freq;
+                adjGridID.y %= freq;
+            }
+            float2 noise = noise2x2(adjGridID);
 
             // Add sin of noise ot both components (modulates X and Y kind of like the ABC logo)
             float2 pointOnAdjGrid = adjGridCoord + sin(time * noise) * .5;
