@@ -2,6 +2,7 @@ using System.Data.Common;
 using UnityEngine;
 using UnityEditor;
 using System.IO;
+using UnityUtils.Rendering;
 using UnityEngine.Rendering;
 
 public enum Noise
@@ -18,6 +19,7 @@ public class NoiseGeneratorWindow : EditorWindow
 {
     private int resolution = 512;
     private bool tiling = false;
+    private bool _volumeTexture = false;
     private int octaves = 3;
     private float persistance = .5f;
     private float lacunarity = 3;
@@ -42,6 +44,7 @@ public class NoiseGeneratorWindow : EditorWindow
 
         resolution = EditorGUILayout.IntField("Resolution", resolution);
         tiling = EditorGUILayout.Toggle("Tiling", tiling);
+        _volumeTexture = EditorGUILayout.Toggle("volumeTexture", _volumeTexture);
         EditorGUILayout.Space(10);
         noisetype = (Noise)EditorGUILayout.Popup("Noise Type:", (int)noisetype, System.Enum.GetNames(typeof(Noise)));
         octaves = EditorGUILayout.IntField("Octaves", octaves);
@@ -84,12 +87,19 @@ public class NoiseGeneratorWindow : EditorWindow
         }
 
         renderTexture = new RenderTexture(resolution, resolution, 0, RenderTextureFormat.RFloat);
+        if (_volumeTexture)
+        {
+            renderTexture.dimension = TextureDimension.Tex3D;
+            renderTexture.volumeDepth = resolution;
+        }
+
+
         renderTexture.enableRandomWrite = true;
         renderTexture.Create();
 
-        int kernelHandle = computeShader.FindKernel(noisetype.ToString());
+        int kernelHandle = computeShader.FindKernel(_volumeTexture ? noisetype.ToString() +"3D" : noisetype.ToString());
         computeShader.SetInt("resolution", resolution);
-        computeShader.SetTexture(kernelHandle, "OutputTex", renderTexture);
+        computeShader.SetTexture(kernelHandle, _volumeTexture ? "OutputTex3D" : "OutputTex", renderTexture);
         
         computeShader.SetFloat("freq", freq);
         computeShader.SetFloat("time", Time.time);
@@ -100,29 +110,44 @@ public class NoiseGeneratorWindow : EditorWindow
         computeShader.SetBool("tiling", tiling);
         computeShader.SetFloat("valueScalar", 1);
         computeShader.SetBool("additionalLayer", false);
-        computeShader.Dispatch(kernelHandle, renderTexture.width / 8, renderTexture.height / 8, 1);
-        
-        
-        int minMaxKernel = computeShader.FindKernel("MinMax");
-        ComputeBuffer minMaxBuffer = new ComputeBuffer(2, 4, ComputeBufferType.Default);
-        minMaxBuffer.SetData(new float[]{1000,0});
-        computeShader.SetBuffer(minMaxKernel,"minMaxBuffer", minMaxBuffer);
-        computeShader.SetInt("maxVal", 0);
-        computeShader.SetTexture(minMaxKernel, "OutputTex", renderTexture);
-        computeShader.Dispatch(minMaxKernel, renderTexture.width, renderTexture.height, 1);
-        
-        
-        
-        int remapKernel = computeShader.FindKernel("Remap");
-        computeShader.SetBuffer(remapKernel,"minMaxBuffer", minMaxBuffer);
-        computeShader.SetTexture(remapKernel, "OutputTex", renderTexture);
-        computeShader.Dispatch(remapKernel, renderTexture.width / 8, renderTexture.height / 8, 1);
-        
-        float[] maxData = new float[1];
-        minMaxBuffer.GetData(maxData);
-        Debug.Log(maxData[0]);
-        
-        SaveTextureAsPNG(renderTexture, fileName);
+
+        int threads = resolution / 8;
+
+        computeShader.Dispatch(kernelHandle, threads, threads, 
+            _volumeTexture ? threads : 1);
+
+
+        // int minMaxKernel = computeShader.FindKernel("MinMax");
+        // ComputeBuffer minMaxBuffer = new ComputeBuffer(2, 4, ComputeBufferType.Default);
+        // minMaxBuffer.SetData(new float[]{1000,0});
+        // computeShader.SetBuffer(minMaxKernel,"minMaxBuffer", minMaxBuffer);
+        // computeShader.SetInt("maxVal", 0);
+        // computeShader.SetTexture(minMaxKernel, "OutputTex", renderTexture);
+        // computeShader.Dispatch(minMaxKernel, renderTexture.width, renderTexture.height, 1);
+        //
+        //
+        // int remapKernel = computeShader.FindKernel("Remap");
+        // computeShader.SetBuffer(remapKernel,"minMaxBuffer", minMaxBuffer);
+        // computeShader.SetTexture(remapKernel, "OutputTex", renderTexture);
+        // computeShader.Dispatch(remapKernel, renderTexture.width / 8, renderTexture.height / 8, 1);
+        //
+        // float[] maxData = new float[1];
+        // minMaxBuffer.GetData(maxData);
+        // Debug.Log(maxData[0]);
+
+        if (_volumeTexture)
+        {
+            SaveRenderTextures.Save3D(
+                renderTexture,
+                fileName + " Volume",
+                RenderTextureFormat.RFloat,
+                TextureFormat.RFloat
+            );
+        }
+        else
+        {
+            SaveTextureAsPNG(renderTexture, fileName);
+        }
     }
 
     private void SaveTextureAsPNG(RenderTexture renderTexture, string fileName)

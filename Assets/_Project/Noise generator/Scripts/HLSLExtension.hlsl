@@ -51,6 +51,11 @@ float2 noise2x2(float2 p)
     return  noise;
 }
 
+float whiteNoise3x3(float3 p)
+{
+    return frac(sin(dot(p, float3(12.9898, 78.233, 37.719)))* 43758.5453);
+}
+
 float2 noise2x2Time(float2 id, float time)
 {
     float x = dot(id, float2(123.4, 234.5));

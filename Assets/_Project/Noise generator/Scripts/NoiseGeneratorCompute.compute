@@ -1,4 +1,5 @@
 #pragma kernel WhiteNoise
+#pragma kernel WhiteNoise3D
 #pragma kernel ValueNoise
 #pragma kernel WorleyNoise
 #pragma kernel PerlinNoise
@@ -6,13 +7,13 @@
 #pragma kernel MinMax
 #pragma kernel Remap
 
-
 #include "HLSLExtension.hlsl"
 
 
 //---- VARIABLES
 //
 RWTexture2D<float> OutputTex;
+RWTexture3D<float> OutputTex3D;
 
 float freq = 4;
 uint resolution = 512;
@@ -36,6 +37,12 @@ bool tiling;
 void WhiteNoise (uint3 id : SV_DispatchThreadID)
 {
     OutputTex[id.xy] = noise2x1(id.xy);
+}
+
+[numthreads(8,8,8)]
+void WhiteNoise3D (uint3 id : SV_DispatchThreadID)
+{
+    OutputTex3D[id.xyz] = whiteNoise3x3(id.xyz);
 }
 
 
