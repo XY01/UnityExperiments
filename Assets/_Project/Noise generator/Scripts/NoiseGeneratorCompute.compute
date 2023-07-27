@@ -1,6 +1,7 @@
 #pragma kernel WhiteNoise
 #pragma kernel WhiteNoise3D
 #pragma kernel ValueNoise
+#pragma kernel ValueNoise3D
 #pragma kernel WorleyNoise
 #pragma kernel PerlinNoise
 
@@ -68,6 +69,31 @@ void ValueNoise (uint3 id : SV_DispatchThreadID)
     
     OutputTex[id.xy] = noiseHeight;    
 }
+
+[numthreads(8,8,8)]
+void ValueNoise3D (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+    
+    float3 uvw = float3((float)id.x/resolution,
+                        (float)id.y/resolution,
+                        (float)id.z/resolution);
+
+
+    for(uint i = 0; i < octaves; i++)
+    {
+        float noiseSample = valueNoise3D(uvw, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
+    OutputTex3D[id.xyz] = noiseHeight;    
+}
+
 
 [numthreads(8,8,1)]
 void WorleyNoise (uint3 id : SV_DispatchThreadID)
