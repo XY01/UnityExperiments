@@ -107,63 +107,7 @@ float valueNoise(float2 uv, float freq, float time, bool tiling)
     return lerp(botLerp, topLerp, gridUV.y);
 }
 
-float valueNoise3D(float3 uvw, float freq, float time, bool tiling)
-{
-    float3 scaledUv = uvw * freq;
-    float3 gridID = floor(scaledUv);
-    //gridID += time;
 
-    
-    
-    float3 gridUVW = float3(frac(scaledUv.x), frac(scaledUv.y), frac(scaledUv.z));
-    gridUVW = smoothstep(0,1,gridUVW);
-
-    float nearBotLeft;
-    float nearBotRight;
-    float nearTopLeft;
-    float nearTopRight;
-    float farBotLeft;
-    float farBotRight;
-    float farTopLeft;
-    float farTopRight;
-   
-   
-    // Get noise values at grid corners
-    if(tiling)
-    {
-        nearBotLeft = whiteNoise3x3((gridID+time)%freq);
-        nearBotRight = whiteNoise3x3((gridID+time+  float3(1.0, 0   ,0))%freq);
-        nearTopLeft = whiteNoise3x3((gridID+time+   float3(0.0, 1.0 ,0))%freq);
-        nearTopRight = whiteNoise3x3((gridID+time+  float3(1.0, 1.0 ,0))%freq);
-
-        farBotLeft = whiteNoise3x3((gridID+time+   float3( 0,  0   ,1))%freq);
-        farBotRight = whiteNoise3x3((gridID+time+  float3(1.0, 0   ,1))%freq);
-        farTopLeft = whiteNoise3x3((gridID+time+   float3(0.0, 1.0 ,1))%freq);
-        farTopRight = whiteNoise3x3((gridID+time+  float3(1.0, 1.0 ,1))%freq);
-    }
-    else
-    {
-        nearBotLeft = whiteNoise3x3(gridID+time);
-        nearBotRight = whiteNoise3x3(gridID+time+  float3(1.0, 0   ,0));
-        nearTopLeft = whiteNoise3x3(gridID+time+   float3(0.0, 1.0 ,0));
-        nearTopRight = whiteNoise3x3(gridID+time+  float3(1.0, 1.0 ,0));
-
-        farBotLeft = whiteNoise3x3(gridID+time+   float3( 0,  0   ,1));
-        farBotRight = whiteNoise3x3(gridID+time+  float3(1.0, 0   ,1));
-        farTopLeft = whiteNoise3x3(gridID+time+   float3(0.0, 1.0 ,1));
-        farTopRight = whiteNoise3x3(gridID+time+  float3(1.0, 1.0 ,1));
-    }
-
-    float nearBotLerp = lerp(nearBotLeft, nearBotRight, gridUVW.x);
-    float nearTopLerp = lerp(nearTopLeft, nearTopRight, gridUVW.x);   
-    float nearBtmTopLerp = lerp(nearBotLerp, nearTopLerp, gridUVW.y);
-
-    float farBotLerp = lerp(farBotLeft, farBotRight, gridUVW.x);
-    float farTopLerp = lerp(farTopLeft, farTopRight, gridUVW.x);   
-    float farBtmTopLerp = lerp(farBotLerp, farTopLerp, gridUVW.y);
-
-    return lerp(nearBtmTopLerp, farBtmTopLerp, gridUVW.z);
-}
 
 // Also Voronoi noise. Currently offsetting in the z to get better depth
 // Change to 2D for more traditional worley
@@ -263,6 +207,142 @@ float perlinNoise(float2 uv, float freq, float time, bool tiling)
     float perlin = lerp(lerpBtm, lerpTop, gridV);
 
     return  perlin;
+}
+
+
+// 3D Noises
+float valueNoise3D(float3 uvw, float freq, float time, bool tiling)
+{
+    float3 scaledUv = uvw * freq;
+    float3 gridID = floor(scaledUv);
+    float3 gridUVW = float3(frac(scaledUv.x), frac(scaledUv.y), frac(scaledUv.z));
+    gridUVW = smoothstep(0,1,gridUVW);
+
+    float nearBotLeft;
+    float nearBotRight;
+    float nearTopLeft;
+    float nearTopRight;
+    float farBotLeft;
+    float farBotRight;
+    float farTopLeft;
+    float farTopRight;
+   
+   
+    // Get noise values at grid corners
+    if(tiling)
+    {
+        nearBotLeft = whiteNoise3x3((gridID+time)%freq);
+        nearBotRight = whiteNoise3x3((gridID+time+  float3(1.0, 0   ,0))%freq);
+        nearTopLeft = whiteNoise3x3((gridID+time+   float3(0.0, 1.0 ,0))%freq);
+        nearTopRight = whiteNoise3x3((gridID+time+  float3(1.0, 1.0 ,0))%freq);
+
+        farBotLeft = whiteNoise3x3((gridID+time+   float3( 0,  0   ,1))%freq);
+        farBotRight = whiteNoise3x3((gridID+time+  float3(1.0, 0   ,1))%freq);
+        farTopLeft = whiteNoise3x3((gridID+time+   float3(0.0, 1.0 ,1))%freq);
+        farTopRight = whiteNoise3x3((gridID+time+  float3(1.0, 1.0 ,1))%freq);
+    }
+    else
+    {
+        nearBotLeft = whiteNoise3x3(gridID+time);
+        nearBotRight = whiteNoise3x3(gridID+time+  float3(1.0, 0   ,0));
+        nearTopLeft = whiteNoise3x3(gridID+time+   float3(0.0, 1.0 ,0));
+        nearTopRight = whiteNoise3x3(gridID+time+  float3(1.0, 1.0 ,0));
+
+        farBotLeft = whiteNoise3x3(gridID+time+   float3( 0,  0   ,1));
+        farBotRight = whiteNoise3x3(gridID+time+  float3(1.0, 0   ,1));
+        farTopLeft = whiteNoise3x3(gridID+time+   float3(0.0, 1.0 ,1));
+        farTopRight = whiteNoise3x3(gridID+time+  float3(1.0, 1.0 ,1));
+    }
+
+    float nearBotLerp = lerp(nearBotLeft, nearBotRight, gridUVW.x);
+    float nearTopLerp = lerp(nearTopLeft, nearTopRight, gridUVW.x);   
+    float nearBtmTopLerp = lerp(nearBotLerp, nearTopLerp, gridUVW.y);
+
+    float farBotLerp = lerp(farBotLeft, farBotRight, gridUVW.x);
+    float farTopLerp = lerp(farTopLeft, farTopRight, gridUVW.x);   
+    float farBtmTopLerp = lerp(farBotLerp, farTopLerp, gridUVW.y);
+
+    return lerp(nearBtmTopLerp, farBtmTopLerp, gridUVW.z);
+}
+
+float perlinNoise3D(float3 uvw, float freq, float time, bool tiling)
+{
+    float3 scaledUv = uvw * freq;
+    float3 gridID = floor(scaledUv);
+    float3 gridUVW = float3(frac(scaledUv.x), frac(scaledUv.y), frac(scaledUv.z));
+    
+
+    float nearBotLeft;
+    float nearBotRight;
+    float nearTopLeft;
+    float nearTopRight;
+    float farBotLeft;
+    float farBotRight;
+    float farTopLeft;
+    float farTopRight;
+   
+   
+    // Get noise values at grid corners
+    if(tiling)
+    {
+        nearBotLeft = whiteNoise3x3((gridID+time)%freq);
+        nearBotRight = whiteNoise3x3((gridID+time+  float3(1.0, 0   ,0))%freq);
+        nearTopLeft = whiteNoise3x3((gridID+time+   float3(0.0, 1.0 ,0))%freq);
+        nearTopRight = whiteNoise3x3((gridID+time+  float3(1.0, 1.0 ,0))%freq);
+
+        farBotLeft = whiteNoise3x3((gridID+time+   float3( 0,  0   ,1))%freq);
+        farBotRight = whiteNoise3x3((gridID+time+  float3(1.0, 0   ,1))%freq);
+        farTopLeft = whiteNoise3x3((gridID+time+   float3(0.0, 1.0 ,1))%freq);
+        farTopRight = whiteNoise3x3((gridID+time+  float3(1.0, 1.0 ,1))%freq);
+    }
+    else
+    {
+        nearBotLeft = whiteNoise3x3(gridID+time);
+        nearBotRight = whiteNoise3x3(gridID+time+  float3(1.0, 0   ,0));
+        nearTopLeft = whiteNoise3x3(gridID+time+   float3(0.0, 1.0 ,0));
+        nearTopRight = whiteNoise3x3(gridID+time+  float3(1.0, 1.0 ,0));
+
+        farBotLeft = whiteNoise3x3(gridID+time+   float3( 0,  0   ,1));
+        farBotRight = whiteNoise3x3(gridID+time+  float3(1.0, 0   ,1));
+        farTopLeft = whiteNoise3x3(gridID+time+   float3(0.0, 1.0 ,1));
+        farTopRight = whiteNoise3x3(gridID+time+  float3(1.0, 1.0 ,1));
+    }
+
+    // Vec to corners
+    float3 distFromNBL = gridUVW - float3(0, 0, 0);
+    float3 distFromNBR = gridUVW - float3(1, 0, 0);
+    float3 distFromNTL = gridUVW - float3(0, 1, 0);
+    float3 distFromNTR = gridUVW - float3(1, 1, 0);
+
+    float3 distFromFBL = gridUVW - float3(0, 0, 1);
+    float3 distFromFBR = gridUVW - float3(1, 0, 1);
+    float3 distFromFTL = gridUVW - float3(0, 1, 1);
+    float3 distFromFTR = gridUVW - float3(1, 1, 1);
+
+    // Dot gradient to corner vec
+    float2 dotNBL = dot(nearBotLeft,    distFromNBL);
+    float2 dotNBR = dot(nearBotRight,   distFromNBR);
+    float2 dotNTL = dot(nearTopLeft,    distFromNTL);
+    float2 dotNTR = dot(nearTopRight,   distFromNTR);
+
+    float2 dotFBL = dot(farBotLeft,    distFromFBL);
+    float2 dotFBR = dot(farBotRight,   distFromFBR);
+    float2 dotFTL = dot(farTopLeft,    distFromFTL);
+    float2 dotFTR = dot(farTopRight,   distFromFTR);
+
+    gridUVW = smoothstep(0,1,gridUVW);
+    
+
+    // Lerp values together
+    float nearBotLerp = lerp(dotNBL, dotNBR, gridUVW.x);
+    float nearTopLerp = lerp(dotNTL, dotNTR, gridUVW.x);   
+    float nearBtmTopLerp = lerp(nearBotLerp, nearTopLerp, gridUVW.y);
+
+    float farBotLerp = lerp(dotFBL, dotFBR, gridUVW.x);
+    float farTopLerp = lerp(dotFTL, dotFTR, gridUVW.x);   
+    float farBtmTopLerp = lerp(farBotLerp, farTopLerp, gridUVW.y);
+    
+    return lerp(nearBtmTopLerp, farBtmTopLerp, gridUVW.z);
 }
 
 // UV HELPERS
