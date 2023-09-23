@@ -82,6 +82,8 @@ public class ComputeTexture : MonoBehaviour {
 	
 	public virtual void SaveAsset(){
 		Texture2D output = ConvertFromRenderTexture(rwTexture.rt);
+		#if UNITY_EDITOR
 		AssetDatabase.CreateAsset(output, "Assets/Noise/" + assetName + ".asset");
+		#endif
 	}
 }

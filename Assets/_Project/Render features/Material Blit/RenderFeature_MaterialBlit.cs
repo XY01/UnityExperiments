@@ -1,4 +1,4 @@
-using AmplifyShaderEditor;
+
 using UnityEngine;
 using UnityEngine.Experimental.Rendering;
 using UnityEngine.Rendering;

@@ -6,8 +6,10 @@
 #pragma kernel PerlinNoise
 #pragma kernel PerlinNoise3D
 
-#pragma kernel MinMax
-#pragma kernel Remap
+#pragma kernel MinMax2D
+#pragma kernel MinMax3D
+#pragma kernel Remap2D
+#pragma kernel Remap3D
 
 #include "HLSLExtension.hlsl"
 
@@ -54,14 +56,14 @@ void ValueNoise (uint3 id : SV_DispatchThreadID)
     float amplitude = 1;    
     float noiseHeight = 0;
     float cachedFreq = freq;
-    
-    float2 uv = float2((float)id.x/resolution,
-                        (float)id.y/resolution);
+
+    const float2 uv = float2((float)id.x/resolution,
+                             (float)id.y/resolution);
 
 
     for(uint i = 0; i < octaves; i++)
     {
-        float noiseSample = valueNoise(uv, cachedFreq, time, tiling);
+        const float noiseSample = valueNoise(uv, cachedFreq, time, tiling);
         noiseHeight += noiseSample * amplitude;
 
         cachedFreq *= lacunarity;
@@ -77,14 +79,14 @@ void ValueNoise3D (uint3 id : SV_DispatchThreadID)
     float amplitude = 1;    
     float noiseHeight = 0;
     float cachedFreq = freq;
-    
-    float3 uvw = float3((float)id.x/resolution,
-                        (float)id.y/resolution,
-                        (float)id.z/resolution);
+
+    const float3 uvw = float3((float)id.x/resolution,
+                              (float)id.y/resolution,
+                              (float)id.z/resolution);
 
     for(uint i = 0; i < octaves; i++)
     {
-        float noiseSample = valueNoise3D(uvw, cachedFreq, time, tiling);
+        const float noiseSample = valueNoise3D(uvw, cachedFreq, time, tiling);
         noiseHeight += noiseSample * amplitude;
         cachedFreq *= lacunarity;
         amplitude *= persistance;
@@ -100,14 +102,14 @@ void WorleyNoise (uint3 id : SV_DispatchThreadID)
     float amplitude = 1;    
     float noiseHeight = 0;
     float cachedFreq = freq;
-    
-    float2 uv = float2((float)id.x/resolution,
-                        (float)id.y/resolution);
+
+    const float2 uv = float2((float)id.x/resolution,
+                             (float)id.y/resolution);
 
    
     for(uint i = 0; i < octaves; i++)
     {
-        float noiseSample = worleyNoise(uv, cachedFreq, time, tiling);
+        const float noiseSample = worleyNoise(uv, cachedFreq, time, tiling);
         noiseHeight += noiseSample * amplitude;
 
         cachedFreq *= lacunarity;
@@ -124,13 +126,13 @@ void PerlinNoise (uint3 id : SV_DispatchThreadID)
     float amplitude = 1;    
     float noiseHeight = 0;
     float cachedFreq = freq;
-    
-    float2 uv = float2((float)id.x/resolution,
-                        (float)id.y/resolution);
+
+    const float2 uv = float2((float)id.x/resolution,
+                             (float)id.y/resolution);
     
     for(uint i = 0; i < octaves; i++)
     {
-        float noiseSample = perlinNoise(uv, cachedFreq, time, tiling);
+        const float noiseSample = perlinNoise(uv, cachedFreq, time, tiling);
         noiseHeight += noiseSample * amplitude;
         cachedFreq *= lacunarity;
         amplitude *= persistance;
@@ -145,15 +147,15 @@ void PerlinNoise3D (uint3 id : SV_DispatchThreadID)
     float amplitude = 1;    
     float noiseHeight = 0;
     float cachedFreq = freq;
-    
-    float3 uvw = float3((float)id.x/resolution,
-                        (float)id.y/resolution,
-                        (float)id.z/resolution);
+
+    const float3 uvw = float3((float)id.x/resolution,
+                              (float)id.y/resolution,
+                              (float)id.z/resolution);
 
     
     for(uint i = 0; i < octaves; i++)
     {
-        float noiseSample = perlinNoise3D(uvw, cachedFreq, time, tiling);
+        const float noiseSample = perlinNoise3D(uvw, cachedFreq, time, tiling);
         noiseHeight += noiseSample * amplitude;
         cachedFreq *= lacunarity;
         amplitude *= persistance;
@@ -163,19 +165,42 @@ void PerlinNoise3D (uint3 id : SV_DispatchThreadID)
 }
 
 
-RWStructuredBuffer<float> minMaxBuffer;
+RWStructuredBuffer<int> minMaxUintBuffer;
+
 
 [numthreads(1,1,1)]
-void MinMax (uint3 id : SV_DispatchThreadID) 
+void MinMax2D (uint3 id : SV_DispatchThreadID) 
 {
-    minMaxBuffer[0] = min(minMaxBuffer[0], OutputTex[id.xy]);
-    minMaxBuffer[1] = max(minMaxBuffer[1], OutputTex[id.xy]);
+    const float value = OutputTex[id.xy];
+    const int intVal = asint(value);
+    InterlockedMin(minMaxUintBuffer[0], intVal);
+    InterlockedMax(minMaxUintBuffer[1], intVal);    
 }
 
-[numthreads(8,8,1)]
-void Remap (uint3 id : SV_DispatchThreadID)
+[numthreads(1,1,1)]
+void MinMax3D (uint3 id : SV_DispatchThreadID) 
 {
-    float texel = OutputTex[id.xy];
-    float newValue = inverseLerp(minMaxBuffer[0],minMaxBuffer[1], texel);
+    const float value = OutputTex3D[id.xyz];
+    const int intVal = asint(value);
+    InterlockedMin(minMaxUintBuffer[0], intVal);
+    InterlockedMax(minMaxUintBuffer[1], intVal);  
+}
+
+RWStructuredBuffer<float> minMaxFloatBuffer;
+[numthreads(8,8,1)]
+void Remap2D (uint3 id : SV_DispatchThreadID)
+{
+    const float texel = OutputTex[id.xy];
+    const float newValue = inverseLerp(minMaxFloatBuffer[0],minMaxFloatBuffer[1], texel);
     OutputTex[id.xy] = newValue;
+}
+
+
+
+[numthreads(8,8,8)]
+void Remap3D (uint3 id : SV_DispatchThreadID)
+{
+    const float texel = OutputTex3D[id.xyz];
+    const float newValue = inverseLerp(minMaxFloatBuffer[0],minMaxFloatBuffer[1], texel);
+    OutputTex3D[id.xyz] = newValue;   
 }

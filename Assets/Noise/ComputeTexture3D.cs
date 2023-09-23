@@ -45,7 +45,7 @@ public class ComputeTexture3D : ComputeTexture {
 
         return render;
     }
-   
+  
     public override void SaveAsset(){
         //for readability
         int dim = squareResolution;
@@ -73,6 +73,8 @@ public class ComputeTexture3D : ComputeTexture {
         output.SetPixels(outputPixels);
         output.Apply();
 
+#if UNITY_EDITOR
         AssetDatabase.CreateAsset(output, "Assets/Noise/" + assetName + ".asset");
+        #endif
     }
 }
