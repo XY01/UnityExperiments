@@ -51,6 +51,18 @@ float2 noise2x2(float2 p)
     return  noise;
 }
 
+float3 noise3x3(float3 p)
+{
+    float x = dot(p, float2(123.4, 234.5));
+    float y = dot(p, float2(234.5, 345.6));
+    float z = dot(p, float2(345.6, 456.7));
+    float3 noise = float3(x,y,z);
+    noise = sin(noise);
+    noise *= 43758.5453;
+    noise = frac(noise);
+    return  noise;
+}
+
 float whiteNoise3x3(float3 p)
 {
     return frac(sin(dot(p, float3(12.9898, 78.233, 37.719)))* 43758.5453);
@@ -69,6 +81,18 @@ float2 noise2x2Time(float2 id, float time)
     float x = dot(id, float2(123.4, 234.5));
     float y = dot(id, float2(123.4, 234.5));
     float2 gradient = float2(x,y);
+    gradient = sin(gradient);
+    gradient *= 143758;
+    gradient = sin(gradient + time);
+    return gradient;
+}
+
+float3 noise3x3Time(float3 id, float time)
+{
+    float x = dot(id, float3(123.4, 234.5, 126.1));
+    float y = dot(id, float3(234.4, 974.5, 836.3));
+    float z = dot(id, float3(334.4, 486.5, 491.4));
+    float3 gradient = float3(x,y,z);
     gradient = sin(gradient);
     gradient *= 143758;
     gradient = sin(gradient + time);
@@ -307,27 +331,27 @@ float perlinNoise3D(float3 uvw, float freq, float time, bool tiling)
     // Get noise at corners
     if(tiling)
     {
-        nblGrad = whiteNoise((nbl)%freq * time);
-        nbrGrad = whiteNoise((nbr)%freq * time);
-        ntlGrad = whiteNoise((ntl)%freq * time);
-        ntrGrad = whiteNoise((ntr)%freq * time);
+        nblGrad = noise3x3Time((nbl)%freq, time);
+        nbrGrad = noise3x3Time((nbr)%freq, time);
+        ntlGrad = noise3x3Time((ntl)%freq, time);
+        ntrGrad = noise3x3Time((ntr)%freq, time);
 
-        fblGrad = whiteNoise((fbl)%freq * time);
-        fbrGrad = whiteNoise((fbr)%freq * time);
-        ftlGrad = whiteNoise((ftl)%freq * time);
-        ftrGrad = whiteNoise((ftr)%freq * time);
+        fblGrad = noise3x3Time((fbl)%freq, time);
+        fbrGrad = noise3x3Time((fbr)%freq, time);
+        ftlGrad = noise3x3Time((ftl)%freq, time);
+        ftrGrad = noise3x3Time((ftr)%freq, time);
     }
     else
     {
-        nblGrad = whiteNoise((nbl) * time);
-        nbrGrad = whiteNoise((nbr) * time);
-        ntlGrad = whiteNoise((ntl) * time);
-        ntrGrad = whiteNoise((ntr) * time);
+        nblGrad = noise3x3Time((nbl), time);
+        nbrGrad = noise3x3Time((nbr), time);
+        ntlGrad = noise3x3Time((ntl), time);
+        ntrGrad = noise3x3Time((ntr), time);
         
-        fblGrad = whiteNoise((fbl) * time);
-        fbrGrad = whiteNoise((fbr) * time);
-        ftlGrad = whiteNoise((ftl) * time);
-        ftrGrad = whiteNoise((ftr) * time);       
+        fblGrad = noise3x3Time((fbl), time);
+        fbrGrad = noise3x3Time((fbr), time);
+        ftlGrad = noise3x3Time((ftl), time);
+        ftrGrad = noise3x3Time((ftr), time);       
     }
 
     // Vec to corners

@@ -33,6 +33,9 @@ public class NoiseGeneratorWindow : EditorWindow
     private bool _tiling = false;
     private bool _volumeTexture = false;
     private int _octaves = 3;
+    private float _seed = 98872364576.23f;
+    private bool _useTimeSeed = true;
+   
     private float _persistence = .5f;
     private float _lacunarity = 3;
     private Noise _noiseType = Noise.WhiteNoise;
@@ -52,8 +55,6 @@ public class NoiseGeneratorWindow : EditorWindow
     private static readonly int Persistance = Shader.PropertyToID("persistance");
     private static readonly int Lacunarity = Shader.PropertyToID("lacunarity");
     private static readonly int Tiling = Shader.PropertyToID("tiling");
-    private static readonly int ValueScalar = Shader.PropertyToID("valueScalar");
-    private static readonly int AdditionalLayer = Shader.PropertyToID("additionalLayer");
     private static readonly int MinMaxFloatBuffer = Shader.PropertyToID("minMaxFloatBuffer");
 
 
@@ -71,6 +72,9 @@ public class NoiseGeneratorWindow : EditorWindow
         _resolution = EditorGUILayout.IntField("Resolution", _resolution);
         _tiling = EditorGUILayout.Toggle("Tiling", _tiling);
         _volumeTexture = EditorGUILayout.Toggle("volumeTexture", _volumeTexture);
+        _useTimeSeed = EditorGUILayout.Toggle("Use Time Seed", _useTimeSeed);
+        if(!_useTimeSeed)
+            _seed = EditorGUILayout.FloatField("Seed", _seed);
         EditorGUILayout.Space(10);
         
         _noiseType = (Noise)EditorGUILayout.Popup("Noise Type:", (int)_noiseType, System.Enum.GetNames(typeof(Noise)));
@@ -108,34 +112,33 @@ public class NoiseGeneratorWindow : EditorWindow
             Debug.LogError("Compute shader is not assigned!");
             return;
         }
-
+        
+        // SETUP RENDER TEX
         _renderTexture = new RenderTexture(_resolution, _resolution, 0, RenderTextureFormat.RFloat);
         if (_volumeTexture)
         {
             _renderTexture.dimension = TextureDimension.Tex3D;
             _renderTexture.volumeDepth = _resolution;
         }
-
-
         _renderTexture.enableRandomWrite = true;
         _renderTexture.Create();
 
+        // SETUP COMPUTE SHADER
         int kernelHandle = _computeShader.FindKernel(_volumeTexture ? _noiseType.ToString() +"3D" : _noiseType.ToString());
         _computeShader.SetInt(Resolution1, _resolution);
         _computeShader.SetTexture(kernelHandle, _volumeTexture ? OutputTex3D : OutputTex, _renderTexture);
         
         _computeShader.SetFloat(Freq, _freq);
-        _computeShader.SetFloat(Time1, Time.time);
+        _computeShader.SetFloat(Time1, _useTimeSeed ? Time.time : _seed);
         
         _computeShader.SetInt(Octaves, _octaves);
         _computeShader.SetFloat(Persistance, _persistence);
         _computeShader.SetFloat(Lacunarity, _lacunarity);
         _computeShader.SetBool(Tiling, _tiling);
-        _computeShader.SetFloat(ValueScalar, 1);
-        _computeShader.SetBool(AdditionalLayer, false);
 
         int threads = _resolution / 8;
 
+        // DISPATCH COMPUTE SHADER
         _computeShader.Dispatch(kernelHandle, threads, threads, 
             _volumeTexture ? threads : 1);
 
@@ -157,7 +160,7 @@ public class NoiseGeneratorWindow : EditorWindow
            Debug.Log($"{min}   {max}");
         
            ComputeBuffer minMaxFloatBuffer = new ComputeBuffer(2, sizeof(float), ComputeBufferType.Default);
-           minMaxFloatBuffer.SetData(new float[]{min,max});
+           minMaxFloatBuffer.SetData(new float[]{-max,max});
             int remapKernel =_computeShader.FindKernel("Remap3D");
            _computeShader.SetBuffer(remapKernel,MinMaxFloatBuffer, minMaxFloatBuffer);
            _computeShader.SetTexture(remapKernel, OutputTex3D, _renderTexture);
@@ -182,7 +185,7 @@ public class NoiseGeneratorWindow : EditorWindow
            
         
            ComputeBuffer minMaxFloatBuffer = new ComputeBuffer(2, sizeof(float), ComputeBufferType.Default);
-           minMaxFloatBuffer.SetData(new float[]{min,max});
+           minMaxFloatBuffer.SetData(new float[]{-max,max});
             int remapKernel =_computeShader.FindKernel("Remap2D");
            _computeShader.SetBuffer(remapKernel,MinMaxFloatBuffer, minMaxFloatBuffer);
            _computeShader.SetTexture(remapKernel, OutputTex, _renderTexture);
@@ -198,7 +201,7 @@ public class NoiseGeneratorWindow : EditorWindow
         {
             SaveRenderTextures.Save3D(
                 _renderTexture,
-                _fileName + " Volume",
+                "/_Project/Noise generator/Textures/"+_fileName + " Volume",
                 RenderTextureFormat.RFloat,
                 TextureFormat.RFloat
             );

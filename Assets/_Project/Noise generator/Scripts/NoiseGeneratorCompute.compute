@@ -28,8 +28,6 @@ float persistance;
 // Scalar on freq for each octave
 float lacunarity;
 
-bool additionalLayer = false;
-float valueScalar = 1;
 
 float time;
 bool tiling;
