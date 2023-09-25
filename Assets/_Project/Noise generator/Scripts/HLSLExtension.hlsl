@@ -185,6 +185,56 @@ float worleyNoise(float2 uv, float freq, float time, bool tiling)
     return  minDistFromPixel;
 }
 
+// Also Voronoi noise. Currently offsetting in the z to get better depth
+// Change to 2D for more traditional worley
+float worleyNoise3D(float3 uvw, float freq, float time, bool tiling)
+{
+    float3 scaledUvw = uvw * freq;
+    const float3 gridID = floor(scaledUvw);
+    float3 gridUVW = float3(frac(scaledUvw.x), frac(scaledUvw.y), frac(scaledUvw.z));
+    float3 centeredGridUV = frac(scaledUvw) - 0.5;
+    
+
+    float minDistFromPixel = 1000;
+    
+    for(int i = -1.0; i <= 1.0; i++)
+    {
+        for(int j = -1.0; j <= 1.0; j++)
+        {
+            for(int k = -1.0; k <= 1.0; k++)
+            {
+                const float3 adjGridCoord = float3(i,j,k);            
+
+                // Get noise sample in adjacent grid // DEBUG - Stable
+                float3 adjGridID = gridID + adjGridCoord + 10;
+                if(tiling)
+                {
+                    adjGridID.x %= freq;
+                    adjGridID.y %= freq;
+                    adjGridID.z %= freq;
+                }
+                float3 noise = noise3x3Time(adjGridID, time);
+
+                // Add sin of noise ot both components (modulates X and Y kind of like the ABC logo)
+                float3 pointOnAdjGrid = adjGridCoord + sin(time * noise) * .5;
+                //const float3 point3D = float3(pointOnAdjGrid, sin(time * noise.x) * 1);
+                //const float3 centeredGrid3D = float3(centeredGridUV);
+
+                // Get min dist to point
+                //float dist = length(centeredGridUV - pointOnAdjGrid);
+                const float dist = length(pointOnAdjGrid - centeredGridUV);
+                //float dist = ManhattanDistance(centeredGridUV, pointOnAdjGrid);
+                //float dist = ChebyshevDistance(centeredGridUV, pointOnAdjGrid);
+                //float dist = MinkowskiDistance(centeredGridUV, pointOnAdjGrid, .5f);
+                //float dist = HammingDistance(centeredGridUV, pointOnAdjGrid);
+                minDistFromPixel = min(dist, minDistFromPixel);
+            }
+        }
+    }
+
+    return  minDistFromPixel;
+}
+
 
 
 

@@ -121,7 +121,7 @@ namespace UnityUtils.Rendering
              #if UNITY_EDITOR
              // TODO: Brad review editor ifdef
              //save the 3D texture asset to the disk
-             UnityEditor.AssetDatabase.CreateAsset(output, $"Assets/_Project/Textures/Volume Textures/{assetName} VolTex.asset");
+             UnityEditor.AssetDatabase.CreateAsset(output, $"Assets/{assetName} VolTex.asset");
 #endif
         }
     }

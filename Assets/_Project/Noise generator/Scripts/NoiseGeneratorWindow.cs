@@ -160,7 +160,8 @@ public class NoiseGeneratorWindow : EditorWindow
            Debug.Log($"{min}   {max}");
         
            ComputeBuffer minMaxFloatBuffer = new ComputeBuffer(2, sizeof(float), ComputeBufferType.Default);
-           minMaxFloatBuffer.SetData(new float[]{-max,max});
+           // TODO: If perlin min is -max, seems to be an issue with asfloat converting to neg
+           minMaxFloatBuffer.SetData(new float[]{min,max});
             int remapKernel =_computeShader.FindKernel("Remap3D");
            _computeShader.SetBuffer(remapKernel,MinMaxFloatBuffer, minMaxFloatBuffer);
            _computeShader.SetTexture(remapKernel, OutputTex3D, _renderTexture);
