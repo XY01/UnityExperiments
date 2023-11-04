@@ -7,8 +7,8 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: Isoline
-  m_Shader: {fileID: 4800000, guid: 6f463b3f1393ccc4fb7c02515e3a1df6, type: 3}
+  m_Name: FluidSimDisplay
+  m_Shader: {fileID: 4800000, guid: fd09f4ab21d8f1e44be6d06246dbec0e, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
@@ -23,8 +23,8 @@ Material:
   m_SavedProperties:
     serializedVersion: 3
     m_TexEnvs:
-    - _TextureSample0:
-        m_Texture: {fileID: 2800000, guid: bb911711ee9d6694e892feafd898faca, type: 3}
+    - _MainTex:
+        m_Texture: {fileID: 0}
         m_Scale: {x: 1, y: 1}
         m_Offset: {x: 0, y: 0}
     - _texcoord:
@@ -34,13 +34,6 @@ Material:
     m_Ints: []
     m_Floats:
     - _AlphaCutoff: 0.5
-    - _Scalar: 39.18
-    - _TessOffset: 0.51
-    - _TessValue: 16
-    - _Tesselation: 128
-    - _Tiling: 0.9
     m_Colors:
-    - _Color0: {r: 0.16037735, g: 0.061276242, b: 0.061276242, a: 1}
-    - _Color1: {r: 0.95283014, g: 0.29214132, b: 0.29214132, a: 1}
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
   m_BuildTextureStacks: []

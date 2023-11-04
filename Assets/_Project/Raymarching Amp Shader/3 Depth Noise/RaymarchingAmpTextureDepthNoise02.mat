@@ -39,7 +39,7 @@ Material:
     - _LightAsorb: 2
     - _NoiseDenistyScale: 1.02
     - _NoiseScale: 0.81
-    - _NoiseStr: 3.1
+    - _NoiseStr: 2.36
     - _NumSteps: 16
     - _StepSize: 0.05
     - _densityScale: 0.5

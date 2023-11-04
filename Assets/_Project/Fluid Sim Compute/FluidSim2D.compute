@@ -1,0 +1,126 @@
+#pragma kernel FluidSim2D
+
+
+// Resolution of your simulation
+#define RES 512
+
+// Buffer to store velocities
+RWTexture2D<float2> Velocity;
+RWTexture2D<float2> TempVelocity;
+
+// Buffer to store densities or any scalar value (like temperature)
+RWTexture2D<float> Density;
+RWTexture2D<float> TempDensity;
+
+// Buffer for pressure and divergence
+RWTexture2D<float> Pressure;
+RWTexture2D<float> Divergence;
+
+SamplerState samplerPoint;
+
+float TimeStep = 0.01f;
+float DiffusionRate = 0.001f;
+float Viscosity = 0.1f;
+
+float2 Advect(float2 position, RWTexture2D<float2> velocityField)
+{
+    return velocityField.Load(position - TimeStep * velocityField.Load(position));
+    //return velocityField.SampleLevel(samplerPoint, position - TimeStep * velocityField.SampleLevel(samplerPoint, position,0), 0);
+}
+
+void Diffuse(RWTexture2D<float2> output, RWTexture2D<float2> input)
+{
+    float a = TimeStep * Viscosity * RES * RES;
+    for (int k = 0; k < 20; k++)
+    {
+        //foreach (uint2 id : output)
+        for (uint y = 0; y < RES; y++)
+        {
+            for (uint x = 0; x < RES; x++)
+            {
+                uint2 id = uint2(x, y);
+                float2 v = input[id];
+                v += a * (output[id + uint2(1, 0)] + output[id - uint2(1, 0)] + output[id + uint2(0, 1)] + output[id - uint2(0, 1)]);
+                v /= (1 + 4 * a);
+                output[id] = v;
+            }
+        }
+    }
+}
+
+void ComputeDivergence(RWTexture2D<float> divergenceBuffer, RWTexture2D<float2> velocityField)
+{
+    //foreach (uint2 id : divergenceBuffer)
+    for (uint y = 0; y < RES; y++)
+    {
+        for (uint x = 0; x < RES; x++)
+        {
+            uint2 id = uint2(x, y);
+            float2 vLeft = velocityField[id - uint2(1, 0)];
+            float2 vRight = velocityField[id + uint2(1, 0)];
+            float2 vDown = velocityField[id - uint2(0, 1)];
+            float2 vUp = velocityField[id + uint2(0, 1)];
+
+            float divergence = 0.5f * (vRight.x - vLeft.x + vUp.y - vDown.y);
+            divergenceBuffer[id] = divergence;
+        }
+    }
+}
+
+void PressureProjection(RWTexture2D<float2> velocityBuffer, RWTexture2D<float> pressureBuffer)
+{
+    //foreach (uint2 id : velocityBuffer)
+    for (uint y = 0; y < RES; y++)
+    {
+        for (uint x = 0; x < RES; x++)
+        {
+            uint2 id = uint2(x, y);
+            float pressureLeft = pressureBuffer[id - uint2(1, 0)];
+            float pressureRight = pressureBuffer[id + uint2(1, 0)];
+            float pressureDown = pressureBuffer[id - uint2(0, 1)];
+            float pressureUp = pressureBuffer[id + uint2(0, 1)];
+
+            float2 velocity = velocityBuffer[id];
+            velocity -= 0.5f * float2(pressureRight - pressureLeft, pressureUp - pressureDown);
+            velocityBuffer[id] = velocity;
+        }
+    }
+}
+
+[numthreads(8, 8, 1)]
+void FluidSim2D (uint3 id : SV_DispatchThreadID)
+{
+    // Advect velocities
+    float2 advectedVelocity = Advect(id.xy, Velocity);
+    TempVelocity[id.xy] = advectedVelocity;
+
+    // Diffuse the advected velocity
+    Diffuse(Velocity, TempVelocity);
+
+    // Compute divergence of our velocity
+    ComputeDivergence(Divergence, Velocity);
+
+    // Iteratively solve for pressure
+    // This is a simplified Jacobi iteration
+    for (int i = 0; i < 20; i++) {
+        //foreach (uint2 id : Pressure)
+        for (uint y = 0; y < RES; y++)
+        {
+            for (uint x = 0; x < RES; x++)
+            {
+                uint2 id = uint2(x, y);
+                float pLeft = Pressure[id - uint2(1, 0)];
+                float pRight = Pressure[id + uint2(1, 0)];
+                float pDown = Pressure[id - uint2(0, 1)];
+                float pUp = Pressure[id + uint2(0, 1)];
+
+                float divergence = Divergence[id];
+                float pressure = (pLeft + pRight + pDown + pUp - divergence) / 4;
+                Pressure[id] = pressure;
+            }
+        }
+    }
+
+    // Subtract pressure gradient from velocity to ensure divergence-free condition
+    PressureProjection(Velocity, Pressure);
+}
