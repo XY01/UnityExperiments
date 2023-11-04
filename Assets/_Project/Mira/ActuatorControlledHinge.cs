@@ -1,19 +1,25 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using UnityEditor;
 using UnityEngine;
+using Random = Unity.Mathematics.Random;
 
 public class ActuatorControlledHinge : MonoBehaviour
 {
     public float FixedLengthA = 1;
     public float FixedLengthB = 2;
     public float VariableLengthC = 1;
-
+    private float angle = 0;
+    
     private void OnDrawGizmos()
     {
-        float angleDegs = CalculateAngle(FixedLengthA, FixedLengthB, VariableLengthC);
+        
+        VariableLengthC = Mathf.Clamp(VariableLengthC, Mathf.Abs(FixedLengthA-FixedLengthB), FixedLengthA + FixedLengthB);
+        
+        angle = CalculateAngle(FixedLengthA, FixedLengthB, VariableLengthC);
         Vector3 vertAB = transform.position;
-        Vector3 vertBC = vertAB - new Vector3(Mathf.Sin(angleDegs * Mathf.Deg2Rad), Mathf.Cos(angleDegs* Mathf.Deg2Rad), 0) * FixedLengthB;
+        Vector3 vertBC = vertAB - new Vector3(Mathf.Sin(angle * Mathf.Deg2Rad), Mathf.Cos(angle* Mathf.Deg2Rad), 0) * FixedLengthB;
         Vector3 vertAC = vertAB + Vector3.down * FixedLengthA;
         // Length A
         Gizmos.DrawLine(vertAB, vertAC);
@@ -34,4 +40,26 @@ public class ActuatorControlledHinge : MonoBehaviour
 
         return theta * (180 / Mathf.PI); // Convert radian to degree
     }
+    
+    #if UNITY_EDITOR
+    [CustomEditor(typeof(ActuatorControlledHinge))]
+    private class MyScriptEditor : Editor
+    {
+        public override void OnInspectorGUI()
+        {
+            ActuatorControlledHinge actuator = (ActuatorControlledHinge)target;
+
+            DrawDefaultInspector();
+            
+            EditorGUILayout.LabelField("Angle", actuator.angle.ToString());
+            
+            // myScript.myColor = EditorGUILayout.ColorField("My Color", myScript.myColor);
+            //
+            // if (GUILayout.Button("Randomize Color"))
+            // {
+            //     myScript.myColor = new Color(Random.value, Random.value, Random.value);
+            // }
+        }
+    }
+    #endif
 }
