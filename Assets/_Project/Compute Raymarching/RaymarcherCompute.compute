@@ -1,0 +1,80 @@
+#pragma kernel RunRaymarcher
+
+// The render target
+RWTexture2D<float4> Result;
+
+// The resolution of the target texture
+float2 _Resolution;
+
+// Camera parameters
+float4x4 _CameraToWorld; // Transforms a point from camera space to world space
+float4x4 _InverseProjection; // Transforms a point from projection space to camera space
+
+// Sphere parameters
+float3 _SpherePosition;
+float _SphereRadius;
+
+// The number of steps to march
+#define MAX_STEPS 100
+// The threshold to consider a hit
+#define HIT_THRESHOLD 0.01
+// The maximum distance to march
+#define MAX_DISTANCE 100.0
+
+// Raymarch a sphere SDF
+float SphereSDF(float3 p, float3 center, float radius) {
+    return length(p - center) - radius;
+}
+
+// Raymarching routine
+float Raymarch(float3 ro, float3 rd)
+{
+    float distanceTravelled = 0.0;
+    for (int i = 0; i < MAX_STEPS; i++)
+    {
+        float3 p = ro + rd * distanceTravelled;
+        float distanceToScene = SphereSDF(p, _SpherePosition, _SphereRadius);
+        if (distanceToScene < HIT_THRESHOLD)
+        {
+            // We hit the surface
+            
+            return  float4(1, 0, 0, 1);// distanceTravelled;
+        }
+        
+        // Move along the ray
+        distanceTravelled += distanceToScene;
+        if (distanceTravelled > MAX_DISTANCE)
+        {
+            // We didn't hit anything
+            return MAX_DISTANCE;
+        }
+    }
+    return MAX_DISTANCE;
+}
+
+// Converts a screen position to a ray direction
+float3 GetRayDirection(float2 uv)
+{
+    float4 clipSpacePosition = float4(uv * 2.0 - 1.0, 0, 1);
+    float4 cameraSpacePosition = mul(_InverseProjection, clipSpacePosition);
+    cameraSpacePosition /= cameraSpacePosition.w;
+    float3 worldSpaceRay = mul(_CameraToWorld, cameraSpacePosition).xyz;
+    return normalize(worldSpaceRay - _CameraToWorld[3].xyz);
+}
+
+// Main compute shader thread
+// Currently testing by putting in default values for the ro and rd
+[numthreads(8, 8, 1)]
+void RunRaymarcher(uint3 id : SV_DispatchThreadID)
+{
+    float2 uv = (id.xy + 0.5) / _Resolution.xy;
+    float2 centeredUV = uv * 2.0 - 1.0;
+    float3 rayDir = normalize(float3(centeredUV.x, centeredUV.y,1));// GetRayDirection(uv);
+    float3 rayOrigin = float3(0,0,0);// _CameraToWorld[3].xyz; // Camera's position in world space
+
+    float distance = Raymarch(rayOrigin, rayDir);
+    float marchValue = distance < MAX_DISTANCE ? 1 : 0;
+    float4 color = distance < MAX_DISTANCE ? float4(1, 0, 0, 1) : float4(0, 0, 0, 1); // Red if we hit the sphere
+
+    Result[id.xy] = float4(rayDir.x,0,marchValue,1);// color; // UV Works - float4(uv.x, uv.y,0,0);
+}
