@@ -14,17 +14,30 @@ float4x4 _InverseProjection; // Transforms a point from projection space to came
 float3 _SpherePosition;
 float _SphereRadius;
 
+float _Smoothing;
+float _SphereOffset; 
+
 // The number of steps to march
 #define MAX_STEPS 100
 // The threshold to consider a hit
 #define HIT_THRESHOLD 0.01
 // The maximum distance to march
-#define MAX_DISTANCE 100.0
+#define MAX_DISTANCE 30.0
 
 // Raymarch a sphere SDF
-float SphereSDF(float3 p, float3 center, float radius) {
+float SphereSDF(float3 p, float3 center, float radius)
+{
     return length(p - center) - radius;
 }
+
+
+float opSmoothUnion( float d1, float d2, float k )
+{
+    float h = clamp( 0.5 + 0.5*(d2-d1)/k, 0.0, 1.0 );
+    return lerp( d2, d1, h ) - k*h*(1.0-h);
+}
+
+float opUnion( float d1, float d2 ) { return min(d1,d2); }
 
 // Raymarching routine
 float Raymarch(float3 ro, float3 rd)
@@ -33,8 +46,15 @@ float Raymarch(float3 ro, float3 rd)
     for (int i = 0; i < MAX_STEPS; i++)
     {
         float3 p = ro + rd * distanceTravelled;
-        float distanceToScene = SphereSDF(p, _SpherePosition, _SphereRadius);
-        if (distanceToScene < HIT_THRESHOLD)
+        float distToSphereCenter = SphereSDF(p, _SpherePosition, _SphereRadius);
+        float distToSphereRight = SphereSDF(p, _SpherePosition + float3(_SphereRadius * _SphereOffset,0,0), _SphereRadius);
+        float distToSphereLeft = SphereSDF(p, _SpherePosition + float3(-_SphereRadius * _SphereOffset,0,0), _SphereRadius);
+
+        float smoothedDist = opSmoothUnion(distToSphereCenter, distToSphereRight, _Smoothing);
+        smoothedDist = opUnion(smoothedDist, distToSphereLeft);
+        
+        
+        if (smoothedDist < HIT_THRESHOLD)
         {
             // We hit the surface
             
@@ -42,7 +62,7 @@ float Raymarch(float3 ro, float3 rd)
         }
         
         // Move along the ray
-        distanceTravelled += distanceToScene;
+        distanceTravelled += smoothedDist;
         if (distanceTravelled > MAX_DISTANCE)
         {
             // We didn't hit anything

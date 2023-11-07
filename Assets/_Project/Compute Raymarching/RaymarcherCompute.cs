@@ -11,6 +11,9 @@ public class RaymarchingSphere : MonoBehaviour
     private int _kernelHandle;
     [SerializeField] private Material OutputMat;
 
+    [SerializeField, Range(0,3)] private float Smoothing = 0;
+    [SerializeField, Range(0,5)] private float SphereOffset = 0;
+
     void Start()
     {
         _cam = Camera.main;
@@ -52,6 +55,9 @@ public class RaymarchingSphere : MonoBehaviour
         RaymarchingShader.SetMatrix("_CameraToWorld", _cam.cameraToWorldMatrix);
         RaymarchingShader.SetMatrix("_InverseProjection", _cam.projectionMatrix.inverse);
         RaymarchingShader.SetVector("_Resolution", new Vector2(_target.width, _target.height));
+        
+        RaymarchingShader.SetFloat("_Smoothing", Smoothing);
+        RaymarchingShader.SetFloat("_SphereOffset", SphereOffset);
         
         int threadGroupsX = Mathf.CeilToInt(Screen.width / 8.0f);
         int threadGroupsY = Mathf.CeilToInt(Screen.height / 8.0f);
