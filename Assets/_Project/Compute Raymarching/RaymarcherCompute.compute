@@ -1,5 +1,27 @@
 #pragma kernel RunRaymarcher
 
+// The number of steps to march
+#define MAX_STEPS 100
+// The threshold to consider a hit
+#define HIT_THRESHOLD 0.01
+// The maximum distance to march
+#define MAX_DISTANCE 30.0
+// Assume a maximum number of spheres
+#define MAX_SPHERES 10
+
+//----- SPHERES ----------------------------
+//
+// Define a struct to represent a sphere
+struct Sphere
+{
+    float3 position;
+    float radius;
+};
+
+StructuredBuffer<Sphere> spheres;
+uint numSpheres;
+//----------------------------
+
 // The render target
 RWTexture2D<float4> Result;
 
@@ -17,17 +39,14 @@ float _SphereRadius;
 float _Smoothing;
 float _SphereOffset; 
 
-// The number of steps to march
-#define MAX_STEPS 100
-// The threshold to consider a hit
-#define HIT_THRESHOLD 0.01
-// The maximum distance to march
-#define MAX_DISTANCE 30.0
+
+
+
 
 // Raymarch a sphere SDF
-float SphereSDF(float3 p, float3 center, float radius)
+float SphereSDF(float3 p, Sphere sphere)
 {
-    return length(p - center) - radius;
+    return length(p - sphere.position) - sphere.radius;
 }
 
 
@@ -39,30 +58,65 @@ float opSmoothUnion( float d1, float d2, float k )
 
 float opUnion( float d1, float d2 ) { return min(d1,d2); }
 
-// Raymarching routine
-float Raymarch(float3 ro, float3 rd)
+// // Function to estimate the normal at a point on the SDF surface
+// float3 EstimateNormal(float3 p)
+// {
+//     const float epsilon = 0.01; // Small offset value for normal calculation
+//     const float3 up = float3(0, epsilon, 0);
+//     const float3 right = float3(epsilon, 0, 0);
+//     const float3 forward = float3(0, 0, epsilon);
+//
+//     // Central difference to approximate gradient (normal)
+//     return normalize(float3
+//     (
+//         SphereSDF(p + right) - SphereSDF(p - right),
+//         SphereSDF(p + up) - SphereSDF(p - up),
+//         SphereSDF(p + forward) - SphereSDF(p - forward)
+//     ));
+// }
+
+
+// Half Lambert shading function
+float HalfLambert(float3 normal, float3 lightDir)
 {
+    float ndotl = dot(normal, lightDir) * 0.5 + 0.5; // Scale and bias the dot product
+    return ndotl * ndotl; // Square to accentuate the effect
+}
+
+// Scene SDF that combines all spheres
+float SceneSDF(float3 p)
+{
+    float sceneDist = 1e5; // Start with a very large number
+    for (int i = 0; i < numSpheres; ++i) {
+        float d = SphereSDF(p, spheres[i]);
+        sceneDist = min(sceneDist, d);
+    }
+    return sceneDist;
+}
+
+// Raymarching routine
+float Raymarch(float3 rayOrigin, float3 rayDirection)
+{
+    float3 lightDir = normalize(float3(1, 1, -1));
+    
     float distanceTravelled = 0.0;
     for (int i = 0; i < MAX_STEPS; i++)
     {
-        float3 p = ro + rd * distanceTravelled;
-        float distToSphereCenter = SphereSDF(p, _SpherePosition, _SphereRadius);
-        float distToSphereRight = SphereSDF(p, _SpherePosition + float3(_SphereRadius * _SphereOffset,0,0), _SphereRadius);
-        float distToSphereLeft = SphereSDF(p, _SpherePosition + float3(-_SphereRadius * _SphereOffset,0,0), _SphereRadius);
+        // Ray point is ray origin + ray direction * distance travelled
+        float3 p = rayOrigin + rayDirection * distanceTravelled;
 
-        float smoothedDist = opSmoothUnion(distToSphereCenter, distToSphereRight, _Smoothing);
-        smoothedDist = opUnion(smoothedDist, distToSphereLeft);
+        float dist = SceneSDF(p);// opSmoothUnion(distToSphereCenter, distToSphereRight, _Smoothing);
+        //finalDist = opUnion(finalDist, distToSphereLeft);
         
         
-        if (smoothedDist < HIT_THRESHOLD)
+        if (dist < HIT_THRESHOLD)
         {
-            // We hit the surface
-            
-            return  float4(1, 0, 0, 1);// distanceTravelled;
+            // We hit the surface            
+            return  distanceTravelled;
         }
         
         // Move along the ray
-        distanceTravelled += smoothedDist;
+        distanceTravelled += dist;
         if (distanceTravelled > MAX_DISTANCE)
         {
             // We didn't hit anything
@@ -84,13 +138,13 @@ float3 GetRayDirection(float2 uv)
 
 // Main compute shader thread
 // Currently testing by putting in default values for the ro and rd
-[numthreads(8, 8, 1)]
+[numthreads(32, 32, 1)]
 void RunRaymarcher(uint3 id : SV_DispatchThreadID)
 {
     float2 uv = (id.xy + 0.5) / _Resolution.xy;
     float2 centeredUV = uv * 2.0 - 1.0;
     float3 rayDir = normalize(float3(centeredUV.x, centeredUV.y,1));// GetRayDirection(uv);
-    float3 rayOrigin = float3(0,0,0);// _CameraToWorld[3].xyz; // Camera's position in world space
+    float3 rayOrigin = float3(0,0,-4);// _CameraToWorld[3].xyz; // Camera's position in world space
 
     float distance = Raymarch(rayOrigin, rayDir);
     float marchValue = distance < MAX_DISTANCE ? 1 : 0;
