@@ -1,8 +1,15 @@
 // Each #kernel tells which function to compile; you can have many kernels
-#pragma kernel CSMain
+#pragma kernel UpdateParticles
+
+struct Particle
+{
+    float3 position;
+    float size;
+    float4 color;
+};
 
 // The number of particles
-#define PARTICLE_COUNT 128
+uint ParticleCount;
 
 // // Structure to hold particle data
 // struct Particle {
@@ -10,14 +17,22 @@
 // };
 
 // The buffer to hold particle data
-RWStructuredBuffer<float3> Particles;
+RWStructuredBuffer<Particle> ParticleBuffer;
+
 float time;
 // Dispatched function
-[numthreads(1, 1, 1)]
-void CSMain(uint3 id : SV_DispatchThreadID) 
+[numthreads(64, 1, 1)]
+void UpdateParticles(uint3 id : SV_DispatchThreadID) 
 {
-    if (id.x >= PARTICLE_COUNT) return;
+    if (id.x >= ParticleCount) return;
 
+    float norm = id.x / (float)ParticleCount;
+    norm *= 6.28;
     // Update the particle position
-    Particles[id.x].y = sin(Particles[id.x].x + time) * 1;
+    Particle p = ParticleBuffer[id.x]; 
+    p.position.y = sin(norm + time) * 1;
+    p.color.x = (sin(norm * 2 + time) + 1) * .5;
+    const float sizeNorm = (sin(norm * 4 + time) + 1) * .5;
+    p.size = .1 + sizeNorm * .2;
+    ParticleBuffer[id.x] = p;
 }

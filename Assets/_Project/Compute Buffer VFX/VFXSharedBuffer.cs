@@ -2,54 +2,98 @@ using System.Collections;
 using System.Collections.Generic;
 using Unity.Mathematics;
 using UnityEngine;
+using UnityEngine.Serialization;
 using UnityEngine.VFX;
+using UnityEngine.VFX.Utility;
 
 public class VFXSharedBuffer : MonoBehaviour
 {
-        public ComputeShader computeShader;
-        private GraphicsBuffer particleBuffer;
-        private int kernelHandle;
-        private Vector3[] particles;
-        public VisualEffect vfx;
+    [VFXType(VFXTypeAttribute.Usage.GraphicsBuffer)] // This attribute marks the struct for use in VFX Graph
+    public struct Particle
+    {
+        public Vector3 Position;
+        public float Size;
+        public Vector4 Color;
+    }
     
     
-        void Start() {
-            kernelHandle = computeShader.FindKernel("CSMain");
     
-            // Initialize particles
-            particles = new Vector3[128];
-            for (int i = 0; i < particles.Length; i++) {
-                particles[i] = new Vector3(i * 0.1f, 0, 0);
-            }
+    public ComputeShader ComputeShader;
+    private int _updateParticlesKernel;
+    [SerializeField] private float Size = .2f;
+    [SerializeField] private bool Dispatch = true;
     
-            // Create compute buffer
-            particleBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, 128, 3 * sizeof(float));
-            particleBuffer.SetData(particles);
+    public VisualEffect VFX;
     
-            // Set buffer for the compute shader
-            computeShader.SetBuffer(kernelHandle, "Particles", particleBuffer);
-            
-            vfx.SetGraphicsBuffer("ParticlePosBuffer", particleBuffer);
+ 
+    private Particle[] _particles;
+    
+    [SerializeField] private int ParticleCount = 128;
+    private GraphicsBuffer _particleBuffer;
+
+    private int _threadCount;
+
+    void Start() 
+    {
+        _updateParticlesKernel = ComputeShader.FindKernel("UpdateParticles");
+
+        // Initialize particles
+        _particles = new Particle[ParticleCount];
+        for (int i = 0; i < ParticleCount; i++)
+        {
+            float norm = i / (ParticleCount - 1.0f);
+            _particles[i] = new Particle()
+            {
+                Position = new Vector3(-5 + norm * 10, 0, 0),
+                Color = new Vector4(1, 0, 0, 1),
+                Size = Size
+            };
         }
+
+        // --- CREATE GRAPHICS BUFFERS
+        //
+        _particleBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, ParticleCount, sizeof(float) * 8);
+        _particleBuffer.SetData(_particles);
+      
+
+        // --- COMPUTE SHADER
+        //
+        // BUFFERS
+        ComputeShader.SetBuffer(_updateParticlesKernel, "ParticleBuffer", _particleBuffer);
+        // VARS
+        ComputeShader.SetInt("ParticleCount", ParticleCount);
+        
+        _threadCount = Mathf.CeilToInt(_particles.Length/64f);
     
-        void Update() {
-            
-            computeShader.SetFloat("time", Time.time);
-            // Dispatch the compute shader
-            computeShader.Dispatch(kernelHandle, particles.Length, 1, 1);
-    
-            // Retrieve data
-            //particleBuffer.GetData(particles);
-    
-            // Update your particle system or visualization here with the new positions
+        
+        // --- VFX GRAPH
+        //
+        // VARS
+        VFX.SetInt("ParticleCount", ParticleCount);
+        // BUFFERS
+        VFX.SetGraphicsBuffer("ParticleBuffer", _particleBuffer);
+    }
+
+    void Update() 
+    {
+        if(!Dispatch) return;
+        
+        ComputeShader.SetFloat("time", Time.time);
+        // Dispatch the compute shader
+        ComputeShader.Dispatch(_updateParticlesKernel, _threadCount, 1, 1);
+
+        // Retrieve data
+        //particleBuffer.GetData(particles);
+
+        // Update your particle system or visualization here with the new positions
+    }
+
+    void OnDestroy()
+    {
+        // Release the buffer
+        if (_particleBuffer != null) 
+        {
+            _particleBuffer.Release();
         }
-    
-        void OnDestroy() {
-            // Release the buffer
-            if (particleBuffer != null) {
-                particleBuffer.Release();
-            }
-        }
+    }
 }
-
-
