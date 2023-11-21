@@ -4,6 +4,7 @@
 struct Particle
 {
     float3 position;
+    float3 velocity;    
     float size;
     float4 color;
 };
@@ -18,8 +19,13 @@ uint ParticleCount;
 
 // The buffer to hold particle data
 RWStructuredBuffer<Particle> ParticleBuffer;
+Texture3D<float> SDF;
+// Declare a sampler state
+SamplerState samplerSDF;
+
 
 float time;
+float deltaTime;
 // Dispatched function
 [numthreads(64, 1, 1)]
 void UpdateParticles(uint3 id : SV_DispatchThreadID) 
@@ -29,10 +35,32 @@ void UpdateParticles(uint3 id : SV_DispatchThreadID)
     float norm = id.x / (float)ParticleCount;
     norm *= 6.28;
     // Update the particle position
-    Particle p = ParticleBuffer[id.x]; 
-    p.position.y = sin(norm + time) * 1;
-    p.color.x = (sin(norm * 2 + time) + 1) * .5;
-    const float sizeNorm = (sin(norm * 4 + time) + 1) * .5;
-    p.size = .1 + sizeNorm * .2;
+    Particle p = ParticleBuffer[id.x];
+
+    
+
+    // Sample SDF at position
+    float3 uvw = float3(p.position.x / 10.0, p.position.y / 10.0, .25);  
+    float dist = SDF.SampleLevel(samplerSDF, uvw, 0).r;
+
+    
+    if(dist < .01)
+        p.velocity = -p.velocity;
+
+    // Update position
+    p.position += p.velocity * deltaTime;
+
+    // Wrap around y
+    if(p.position.y > 10)
+        p.position.y = 0;
+    else  if(p.position.y < 0)
+        p.position.y = 10;
+   
+   
+    
+    
+    p.color.x = 1-saturate(dist);// (sin(norm * 2 + time) + 1) * .5;
+    //const float sizeNorm = (sin(norm * 4 + time) + 1) * .5;
+    p.size = .01 + dist * .2;
     ParticleBuffer[id.x] = p;
 }

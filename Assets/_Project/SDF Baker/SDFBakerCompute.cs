@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Serialization;
+using XY01.TechArt.EditorUtils;
 
 public class SDFBakerCompute : MonoBehaviour
 {
@@ -106,6 +107,10 @@ public class SDFBakerCompute : MonoBehaviour
         // Execute the compute shader
         sdfShader.Dispatch(sdfKernel, outputTexture.width / 8, outputTexture.height / 8, outputTexture.height / 8);
 
+        SaveRenderTextures.Save3D(outputTexture, "/_Project/SDF Baker/Baked/SDF Test Bake",
+            RenderTextureFormat.RFloat,
+            TextureFormat.RFloat);
+        
         // // Get the texture data back to the CPU
         // Texture2D tex = new Texture2D(outputTexture.width, outputTexture.height, TextureFormat.RGB24, false);
         // RenderTexture.active = outputTexture;

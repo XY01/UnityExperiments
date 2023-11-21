@@ -48,7 +48,7 @@ Material:
     - _EmissionColor: {r: 1, g: 1, b: 1, a: 1}
     - _LightCol: {r: 1, g: 0.033018887, b: 0.033018887, a: 0}
     - _ShadeCol: {r: 0, g: 0, b: 0, a: 0}
-    - _boundsMax: {r: 2.25, g: 1.15, b: 1.15, a: 0}
-    - _boundsMin: {r: -2.25, g: -1.15, b: -1.15, a: 0}
+    - _boundsMax: {r: 1, g: 1, b: 1, a: 0}
+    - _boundsMin: {r: -1, g: -1, b: -1, a: 0}
     - _offset: {r: 2.25, g: 1.15, b: 1.15, a: 0}
   m_BuildTextureStacks: []

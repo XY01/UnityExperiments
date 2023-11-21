@@ -5,6 +5,7 @@ using UnityEngine;
 using UnityEngine.Serialization;
 using UnityEngine.VFX;
 using UnityEngine.VFX.Utility;
+using Random = UnityEngine.Random;
 
 public class VFXSharedBuffer : MonoBehaviour
 {
@@ -12,6 +13,7 @@ public class VFXSharedBuffer : MonoBehaviour
     public struct Particle
     {
         public Vector3 Position;
+        public Vector3 Velocity;
         public float Size;
         public Vector4 Color;
     }
@@ -24,7 +26,8 @@ public class VFXSharedBuffer : MonoBehaviour
     [SerializeField] private bool Dispatch = true;
     
     public VisualEffect VFX;
-    
+
+    public Texture3D SDFTex;
  
     private Particle[] _particles;
     
@@ -44,7 +47,8 @@ public class VFXSharedBuffer : MonoBehaviour
             float norm = i / (ParticleCount - 1.0f);
             _particles[i] = new Particle()
             {
-                Position = new Vector3(-5 + norm * 10, 0, 0),
+                Position = new Vector3( norm * 10, 0, 0),
+                Velocity = new Vector3(-0,Random.Range(.4f, 1.4f),0),
                 Color = new Vector4(1, 0, 0, 1),
                 Size = Size
             };
@@ -52,7 +56,7 @@ public class VFXSharedBuffer : MonoBehaviour
 
         // --- CREATE GRAPHICS BUFFERS
         //
-        _particleBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, ParticleCount, sizeof(float) * 8);
+        _particleBuffer = new GraphicsBuffer(GraphicsBuffer.Target.Structured, ParticleCount, sizeof(float) * 11);
         _particleBuffer.SetData(_particles);
       
 
@@ -61,6 +65,7 @@ public class VFXSharedBuffer : MonoBehaviour
         // BUFFERS
         ComputeShader.SetBuffer(_updateParticlesKernel, "ParticleBuffer", _particleBuffer);
         // VARS
+        ComputeShader.SetTexture(_updateParticlesKernel, "SDF", SDFTex);
         ComputeShader.SetInt("ParticleCount", ParticleCount);
         
         _threadCount = Mathf.CeilToInt(_particles.Length/64f);
@@ -79,6 +84,7 @@ public class VFXSharedBuffer : MonoBehaviour
         if(!Dispatch) return;
         
         ComputeShader.SetFloat("time", Time.time);
+        ComputeShader.SetFloat("deltaTime", Time.deltaTime);
         // Dispatch the compute shader
         ComputeShader.Dispatch(_updateParticlesKernel, _threadCount, 1, 1);
 
