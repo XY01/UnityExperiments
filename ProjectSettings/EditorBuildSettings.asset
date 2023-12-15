@@ -5,7 +5,10 @@ EditorBuildSettings:
   m_ObjectHideFlags: 0
   serializedVersion: 2
   m_Scenes:
-  - enabled: 1
+  - enabled: 0
     path: Assets/_Project/SVG Writer/SVG Writer.unity
     guid: 99c9720ab356a0642a771bea13969a05
+  - enabled: 1
+    path: Assets/_Project/Compute Raymarching/Compute raymarching.unity
+    guid: e01f0d6af29764a4a8f722cc38f1875a
   m_configObjects: {}

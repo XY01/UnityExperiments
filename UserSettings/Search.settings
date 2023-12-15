@@ -8,6 +8,16 @@ onBoardingDoNotAskAgain = true
 showPackageIndexes = false
 showStatusBar = false
 scopes = {
+	"picker_window_position_offset.74AD8FDB" = "1338;401;320;550"
+	"picker_search_text.74AD8FDB" = "part"
+	"last_search.74AD8FDB" = "part"
+	"OpenInspectorPreview.74AD8FDB" = "0"
+	"currentGroup.74AD8FDB" = "all"
+	"picker_window_position_offset.3172962C" = "1652;589;320;550"
+	"picker_search_text.3172962C" = "quad"
+	"last_search.3172962C" = "quad"
+	"OpenInspectorPreview.3172962C" = "0"
+	"currentGroup.3172962C" = "all"
 }
 providers = {
 	adb = {
@@ -48,6 +58,11 @@ providers = {
 	scene = {
 		active = true
 		priority = 50
+		defaultAction = null
+	}
+	profilermarkers = {
+		active = false
+		priority = 100
 		defaultAction = null
 	}
 }
