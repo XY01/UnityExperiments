@@ -155,7 +155,7 @@
       },
       "url": "https://packages.unity.com"
     },
-    "com.xy01.editor-tools.noise-generator": {
+    "com.xy01.techart-utils.noise-generator": {
       "version": "file:com.xy01.editor-tools.noise-generator",
       "depth": 0,
       "source": "embedded",

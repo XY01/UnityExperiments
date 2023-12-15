@@ -1,0 +1,87 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel UpdateParticles
+
+struct Particle
+{
+    float3 position;
+    float3 velocity;    
+    float size;
+    float4 color;
+};
+
+// The number of particles
+uint ParticleCount;
+
+// // Structure to hold particle data
+// struct Particle {
+//     float3 position;
+// };
+
+// The buffer to hold particle data
+RWStructuredBuffer<Particle> ParticleBuffer;
+Texture3D<float> SDF;
+// Declare a sampler state
+SamplerState samplerSDF;
+
+
+float time;
+float deltaTime;
+// Dispatched function
+[numthreads(64, 1, 1)]
+void UpdateParticles(uint3 id : SV_DispatchThreadID) 
+{
+    uint index = id.x;// + id.y * 8 + id.z * 8 * 8;
+    
+    if (index >= ParticleCount) return;
+
+    float norm = index / (float)ParticleCount;
+    norm *= 6.28;
+    // Update the particle position
+    Particle p = ParticleBuffer[index];
+
+    
+
+    // Sample SDF at position
+    float3 uvw = float3(p.position.x / 10.0, p.position.y / 10.0, p.position.z / 10.0);  
+    float dist = SDF.SampleLevel(samplerSDF, uvw, 0).r;
+
+    
+    if(dist < .001)
+    {
+        p.velocity = -p.velocity * 1.2;
+        if(length(p.velocity) > 3)
+            p.velocity = normalize(p.velocity) * 3;
+        
+        p.color.yz += .1;
+        p.color = saturate(p.color);
+    }
+
+    // Update position
+    p.position += p.velocity * deltaTime;
+
+    // Wrap around x
+    if(p.position.x > 10)
+        p.position.x -= 10;
+    else  if(p.position.x < 0)
+        p.position.x += 10;
+
+    // Wrap around y
+    if(p.position.y > 10)
+        p.position.y -= 10;
+    else  if(p.position.y < 0)
+        p.position.y += 10;
+
+    // Wrap around z
+    if(p.position.z > 10)
+        p.position.z -= 10;
+    else  if(p.position.z < 0)
+        p.position.z += 10;
+   
+   
+    
+    
+    p.color.x = 1-saturate(dist);// (sin(norm * 2 + time) + 1) * .5;
+    //const float sizeNorm = (sin(norm * 4 + time) + 1) * .5;
+    p.size = .01 + dist * .2;
+    ParticleBuffer[index] = p;
+}

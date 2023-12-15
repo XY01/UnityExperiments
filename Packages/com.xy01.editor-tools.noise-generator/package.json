@@ -1,5 +1,5 @@
 {
-    "name": "com.xy01.editor-tools.noise-generator",
+    "name": "com.xy01.techart-utils.noise-generator",
     "version": "0.0.1",
     "displayName": "Noise Generator",
     "description": "Generates noise textures. 2D/3D, Non/Tiling or noise types White, Value, Worley, Perlin. With controls for layering octaves",

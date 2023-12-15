@@ -1,0 +1,230 @@
+#pragma kernel WhiteNoise
+#pragma kernel WhiteNoise3D
+#pragma kernel ValueNoise
+#pragma kernel ValueNoise3D
+#pragma kernel WorleyNoise
+#pragma kernel WorleyNoise3D
+#pragma kernel PerlinNoise
+#pragma kernel PerlinNoise3D
+
+#pragma kernel MinMax2D
+#pragma kernel MinMax3D
+#pragma kernel Remap2D
+#pragma kernel Remap3D
+
+#include "HLSLExtension.hlsl"
+
+
+//---- VARIABLES
+//
+RWTexture2D<float> OutputTex;
+RWTexture3D<float> OutputTex3D;
+
+float freq = 4;
+uint resolution = 512;
+uint octaves = 1;
+
+// Scalar on aplitude for each octave
+float persistance;
+// Scalar on freq for each octave
+float lacunarity;
+
+
+float time;
+bool tiling;
+
+
+//---- PRAGMAS
+//
+[numthreads(8,8,1)]
+void WhiteNoise (uint3 id : SV_DispatchThreadID)
+{
+    OutputTex[id.xy] = noise2x1(id.xy);
+}
+
+[numthreads(8,8,8)]
+void WhiteNoise3D (uint3 id : SV_DispatchThreadID)
+{
+    OutputTex3D[id.xyz] = whiteNoise3x3(id.xyz);
+}
+
+
+[numthreads(8,8,1)]
+void ValueNoise (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+
+    const float2 uv = float2((float)id.x/resolution,
+                             (float)id.y/resolution);
+
+
+    for(uint i = 0; i < octaves; i++)
+    {
+        const float noiseSample = valueNoise(uv, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
+    OutputTex[id.xy] = noiseHeight;    
+}
+
+[numthreads(8,8,8)]
+void ValueNoise3D (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+
+    const float3 uvw = float3((float)id.x/resolution,
+                              (float)id.y/resolution,
+                              (float)id.z/resolution);
+
+    for(uint i = 0; i < octaves; i++)
+    {
+        const float noiseSample = valueNoise3D(uvw, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
+    OutputTex3D[id.xyz] = noiseHeight;    
+}
+
+
+[numthreads(8,8,1)]
+void WorleyNoise (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+
+    const float2 uv = float2((float)id.x/resolution,
+                             (float)id.y/resolution);
+
+   
+    for(uint i = 0; i < octaves; i++)
+    {
+        const float noiseSample = worleyNoise(uv, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
+
+    OutputTex[id.xy] = noiseHeight;     
+}
+
+[numthreads(8,8,8)]
+void WorleyNoise3D (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+
+    const float3 uvw = float3((float)id.x/resolution,
+                               (float)id.y/resolution,
+                               (float)id.z/resolution);
+
+   
+    for(uint i = 0; i < octaves; i++)
+    {
+        const float noiseSample = worleyNoise3D(uvw, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+    
+
+    OutputTex3D[id.xyz] = noiseHeight;     
+}
+
+[numthreads(8,8,1)]
+void PerlinNoise (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+
+    const float2 uv = float2((float)id.x/resolution,
+                             (float)id.y/resolution);
+    
+    for(uint i = 0; i < octaves; i++)
+    {
+        const float noiseSample = perlinNoise(uv, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+
+    OutputTex[id.xy] = noiseHeight;
+}
+
+[numthreads(8,8,8)]
+void PerlinNoise3D (uint3 id : SV_DispatchThreadID)
+{
+    float amplitude = 1;    
+    float noiseHeight = 0;
+    float cachedFreq = freq;
+
+    const float3 uvw = float3((float)id.x/resolution,
+                              (float)id.y/resolution,
+                              (float)id.z/resolution);
+
+    
+    for(uint i = 0; i < octaves; i++)
+    {
+        const float noiseSample = perlinNoise3D(uvw, cachedFreq, time, tiling);
+        noiseHeight += noiseSample * amplitude;
+        cachedFreq *= lacunarity;
+        amplitude *= persistance;
+    }
+
+    OutputTex3D[id.xyz] = noiseHeight;
+}
+
+
+RWStructuredBuffer<int> minMaxUintBuffer;
+
+
+[numthreads(1,1,1)]
+void MinMax2D (uint3 id : SV_DispatchThreadID) 
+{
+    const float value = OutputTex[id.xy];
+    const int intVal = asint(value);
+    InterlockedMin(minMaxUintBuffer[0], intVal);
+    InterlockedMax(minMaxUintBuffer[1], intVal);    
+}
+
+[numthreads(1,1,1)]
+void MinMax3D (uint3 id : SV_DispatchThreadID) 
+{
+    const float value = OutputTex3D[id.xyz];
+    const int intVal = asint(value);
+    InterlockedMin(minMaxUintBuffer[0], intVal);
+    InterlockedMax(minMaxUintBuffer[1], intVal);  
+}
+
+RWStructuredBuffer<float> minMaxFloatBuffer;
+[numthreads(8,8,1)]
+void Remap2D (uint3 id : SV_DispatchThreadID)
+{
+    const float texel = OutputTex[id.xy];
+    const float newValue = inverseLerp(minMaxFloatBuffer[0],minMaxFloatBuffer[1], texel);
+    OutputTex[id.xy] = newValue;
+}
+
+
+
+[numthreads(8,8,8)]
+void Remap3D (uint3 id : SV_DispatchThreadID)
+{
+    const float texel = OutputTex3D[id.xyz];
+    const float newValue = inverseLerp(minMaxFloatBuffer[0],minMaxFloatBuffer[1], texel);
+    OutputTex3D[id.xyz] = newValue;   
+}

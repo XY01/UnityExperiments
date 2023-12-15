@@ -1,0 +1,140 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel UpdateParticles
+
+struct Particle
+{
+    float3 position;
+    float3 velocity;    
+    float size;
+    float4 color;
+};
+
+// The number of particles
+uint ParticleCount;
+
+// // Structure to hold particle data
+// struct Particle {
+//     float3 position;
+// };
+
+// The buffer to hold particle data
+RWStructuredBuffer<Particle> ParticleBuffer;
+Texture3D<float> SDF;
+// Declare a sampler state
+SamplerState samplerSDF;
+
+
+
+
+
+float time;
+float deltaTime;
+
+
+
+// The function to sample the SDF - you will need to implement this
+float SampleSDF(float3 uvw)
+{
+    return SDF.SampleLevel(samplerSDF, uvw, 0).r;
+}
+
+
+
+
+// Function to calculate the normal at a point in the SDF
+float3 CalculateNormal(float3 uvw, float sdfCenter)
+{
+    // Small offset for sampling surrounding points
+    float epsilon = 0.01;
+    float sdfX = SampleSDF(uvw + float3(epsilon, 0, 0));
+    float sdfY = SampleSDF(uvw + float3(0, epsilon, 0));
+    float sdfZ = SampleSDF(uvw + float3(0, 0, epsilon));
+
+    // Compute the gradient
+    float3 grad = float3(sdfX - sdfCenter, sdfY - sdfCenter, sdfZ - sdfCenter);
+
+    // Normalize to get the normal
+    return normalize(grad);
+}
+
+float InverseLerp(float a, float b, float value) {
+    return (a != b) ? (value - a) / (b - a) : 0.0;
+}
+
+// Dispatched function
+[numthreads(64, 1, 1)]
+void UpdateParticles(uint3 id : SV_DispatchThreadID) 
+{
+    uint index = id.x;// + id.y * 8 + id.z * 8 * 8;
+    
+    if (index >= ParticleCount) return;
+
+    float norm = index / (float)ParticleCount;
+    norm *= 6.28;
+    // Update the particle position
+    Particle p = ParticleBuffer[index];
+    
+    // Sample SDF at position
+    float3 uvw = float3(p.position.x / 10.0, p.position.y / 10.0, p.position.z / 10.0);  
+    float dist = SampleSDF(uvw);// SDF.SampleLevel(samplerSDF, uvw, 0).r;
+
+    // Add Gravity
+    p.velocity += float3(0, -9.8, 0) * deltaTime;
+
+    float collisionDampening = .95;
+    if(dist < .005)
+    {
+        // Relfect velocity along normal
+        float3 normal = CalculateNormal(uvw, dist);
+        float dotNormal = dot(normal, p.velocity);
+        p.velocity = reflect(p.velocity, normal) * saturate(collisionDampening * (1 - dotNormal));
+        
+        // Limit speed
+        if(length(p.velocity) > 4)
+            p.velocity = normalize(p.velocity) * 4;
+        
+        p.position += normal * (dist - .005);
+        
+        
+    }
+
+    if(p.position.y <= 0)
+    {
+        p.velocity = reflect(p.velocity, float3(0,1,0)) * collisionDampening;
+
+        // Limit speed
+        if(length(p.velocity) > 4)
+            p.velocity = normalize(p.velocity) * 4;
+        
+        p.position += float3(0,1,0) * (dist - .005);
+    }
+
+  
+    
+    // Update position
+    p.position += p.velocity * deltaTime;
+
+  
+
+    
+    // Wrap around x
+    if(p.position.x > 10)
+        p.position.x -= 10;
+    else  if(p.position.x < 0)
+        p.position.x += 10;
+
+    // Wrap around z
+    if(p.position.z > 10)
+        p.position.z -= 10;
+    else  if(p.position.z < 0)
+        p.position.z += 10;
+  
+
+   
+   
+   
+    float distNorm = saturate(dist*3);
+    p.color = .03 + (1 - distNorm)*.05;
+    p.size = .03 + (1 - distNorm)*.05;// .01 + dist * .2;
+    ParticleBuffer[index] = p;
+}

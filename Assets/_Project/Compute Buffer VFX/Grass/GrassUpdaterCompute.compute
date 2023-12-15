@@ -1,0 +1,87 @@
+// Each #kernel tells which function to compile; you can have many kernels
+#pragma kernel UpdateGrass
+
+struct Grass
+{
+    float3 position;
+    float3 rotation;   
+    float size;
+    float4 color;
+};
+
+// The number of particles
+uint GrassCount;
+
+float PlaneSize;
+
+// // Structure to hold particle data
+// struct Particle {
+//     float3 position;
+// };
+
+// The buffer to hold particle data
+RWStructuredBuffer<Grass> GrassBuffer;
+
+// Declare a sampler state
+SamplerState samplerSDF;
+
+
+float time;
+float deltaTime;
+float3 cameraPosition;   // Position of the camera
+
+
+// Function to calculate Euler angles from direction
+float3 CalculateEulerFromDirection(float3 direction)
+{
+    float3 euler;
+
+    // Yaw is the angle between the x-axis and the projection of the direction vector onto the x-z plane.
+    euler.y = atan2(direction.x, direction.z);
+
+    // Pitch is the angle between the y-axis and the y-component of the direction vector.
+    float horizontalDistance = length(float2(direction.x, direction.z));
+    // Had to modify it too - dir y bc quad is backwards on z
+    euler.x = atan2(-direction.y, horizontalDistance);
+
+   
+    
+
+    // Roll is typically zero in a look-at scenario, as we only deal with yaw and pitch.
+    euler.z = 0;
+
+    // Convert from radians to degrees if necessary
+    euler *= 180.0 / 3.14159265;
+
+    return euler;
+}
+
+
+// Dispatched function
+[numthreads(64, 1, 1)]
+void UpdateGrass(uint3 id : SV_DispatchThreadID) 
+{
+    uint index = id.x;// + id.y * 8 + id.z * 8 * 8;
+    
+    if (index >= GrassCount) return;
+
+    float norm = index / (float)GrassCount;
+  
+    // Update the particle position
+    Grass grass = GrassBuffer[index];
+
+    
+    
+    // Sample SDF at position
+    float3 uvw = float3(grass.position.x / PlaneSize, grass.position.y / PlaneSize, grass.position.z / PlaneSize);  
+
+    // Calculate direction vector from particle to camera
+    float3 direction = normalize(grass.position - cameraPosition);
+
+    // Get Euler angles
+    float3 eulerAngles = CalculateEulerFromDirection(direction);
+
+    grass.rotation = eulerAngles;
+   
+    GrassBuffer[index] = grass;
+}
