@@ -9,15 +9,9 @@ const wss = new WebSocket.Server({ server });
 
 app.use(express.static(path.join(__dirname, 'public')));
 
+let uiElements = [];
+
 app.get('/api/ui-elements', (req, res) => {
-    // This should ideally come from your Unity application or a database
-    const uiElements = [
-        { id: "button1", type: "button", label: "Click Me" },
-        { id: "slider1", type: "slider", min: 0, max: 100, value: 50 },
-        { id: "slider2", type: "slider", min: 0, max: 100, value: 50 },
-        { id: "slider3", type: "slider", min: 0, max: 100, value: 50 },
-        { id: "button2", type: "button", label: "Click Me 2" }
-    ];
     res.json(uiElements);
 });
 
@@ -28,18 +22,27 @@ wss.on('connection', (ws) => {
         console.log('Received:', message);
         const parsedMessage = JSON.parse(message);
 
-        // Broadcast the message to all connected clients (including Unity)
-        wss.clients.forEach((client) => {
-            if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(JSON.stringify(parsedMessage));
-            }
-        });
+        if (parsedMessage.type === 'ui_elements') {
+            uiElements = JSON.parse(parsedMessage.data).elements;
+            broadcast({ type: 'ui_update', data: JSON.stringify(uiElements) });
+        } else {
+            // Broadcast the message to all connected clients (including Unity)
+            broadcast(parsedMessage);
+        }
     });
 
     ws.on('close', () => {
         console.log('WebSocket connection closed');
     });
 });
+
+function broadcast(message) {
+    wss.clients.forEach((client) => {
+        if (client.readyState === WebSocket.OPEN) {
+            client.send(JSON.stringify(message));
+        }
+    });
+}
 
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {

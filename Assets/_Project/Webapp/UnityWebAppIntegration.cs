@@ -1,5 +1,6 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
 using NativeWebSocket;
 using System.Text;
 
@@ -22,14 +23,14 @@ public class UnityWebAppIntegration : MonoBehaviour
     [System.Serializable]
     public class UIElements
     {
-        public UIElement[] elements;
+        public List<UIElement> elements;
     }
 
     [System.Serializable]
     public class WebSocketMessage
     {
-        public string id;
-        public string value;
+        public string type;
+        public string data;
     }
 
     void Start()
@@ -45,6 +46,7 @@ public class UnityWebAppIntegration : MonoBehaviour
         websocket.OnOpen += () =>
         {
             Debug.Log("WebSocket connection established");
+            SendUIElements();
         };
 
         websocket.OnError += (e) =>
@@ -60,15 +62,40 @@ public class UnityWebAppIntegration : MonoBehaviour
         websocket.OnMessage += (bytes) =>
         {
             string message = System.Text.Encoding.UTF8.GetString(bytes);
-            Debug.Log($"Received WebSocket message: {message}");
             HandleIncomingMessage(message);
         };
 
         yield return websocket.Connect();
     }
 
+    void SendUIElements()
+    {
+        UIElements uiElements = new UIElements
+        {
+            elements = new List<UIElement>
+            {
+                new() { id = "button1", type = "button", label = "Play" },
+                new() { id = "button2", type = "button", label = "Pause" },
+                new() { id = "button3", type = "button", label = "Stop" },
+                new() { id = "slider1", type = "slider", label = "Gate", min = 0, max = 100, value = 0 },
+                new() { id = "slider2", type = "slider", label = "Pattern", min = 0, max = 100, value = 1 },
+                new() { id = "slider3", type = "slider", label = "FlowRate", min = 0, max = 100, value = 1 }
+            }
+        };
+
+        WebSocketMessage message = new WebSocketMessage
+        {
+            type = "ui_elements",
+            data = JsonUtility.ToJson(uiElements)
+        };
+
+        string jsonMessage = JsonUtility.ToJson(message);
+        websocket.SendText(jsonMessage);
+    }
+
     void HandleIncomingMessage(string jsonMessage)
     {
+        Debug.Log($"Received message: {jsonMessage}");
         WebSocketMessage message = JsonUtility.FromJson<WebSocketMessage>(jsonMessage);
         UpdateUnityObject(message);
     }
@@ -76,16 +103,22 @@ public class UnityWebAppIntegration : MonoBehaviour
     void UpdateUnityObject(WebSocketMessage message)
     {
         // Implement your logic to update Unity GameObjects based on the received data
-        switch (message.id)
+        switch (message.type)
         {
-            case "button1":
-                Debug.Log("button1 pressed");
+            case "button_click":
+                Debug.Log($"Button {message.data} clicked");
                 break;
-            case "slider1":
-                Debug.Log($"slider1 value: {message.value}");
-                // Update a Unity object based on the slider value
+            case "slider_change":
+                UIElement sliderData = JsonUtility.FromJson<UIElement>(message.data);
+                if (sliderData is null)
+                {
+                    Debug.LogError("Failed to parse slider data");
+                    break;
+                }
+
+                Debug.Log($"Slider {sliderData.label} value: {sliderData.value}");
+                // Update Unity object based on the slider value
                 break;
-            // Handle other UI elements
         }
     }
 
