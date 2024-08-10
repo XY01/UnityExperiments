@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Unity Web App Dashboard</title>
+    <style>
+        :root {
+            --charcoal: #36454F;
+            --orange: #FFA500;
+            --white: #FFFFFF;
+        }
+        
+        body {
+            font-family: 'Arial', sans-serif;
+            background-color: var(--charcoal);
+            color: var(--white);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+
+        .container {
+            background-color: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            padding: 2rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            max-width: 400px;
+            width: 100%;
+        }
+
+        h2 {
+            color: var(--orange);
+            text-align: center;
+            margin-bottom: 1.5rem;
+        }
+
+        #login, #dashboard {
+            display: flex;
+            flex-direction: column;
+        }
+
+        input, button {
+            margin-bottom: 1rem;
+            padding: 0.75rem;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+
+        input {
+            background-color: rgba(255, 255, 255, 0.2);
+            color: var(--white);
+        }
+
+        input::placeholder {
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        button {
+            background-color: var(--orange);
+            color: var(--charcoal);
+            cursor: pointer;
+            font-weight: bold;
+            transition: background-color 0.3s ease;
+        }
+
+        button:hover {
+            background-color: #bf6f0d;
+        }
+
+        #login-error {
+            color: #FF6347;
+            text-align: center;
+            margin-top: 1rem;
+        }
+
+        #controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        #controls button {
+            margin-bottom: 1rem;
+            width: 100%;
+        }
+
+        #controls input[type="range"] {
+            width: 100%;
+            margin-bottom: 1rem;
+        }
+
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="login">
+            <h2>Login</h2>
+            <form id="login-form">
+                <input type="text" id="username" placeholder="Username" autocomplete="username" required>
+                <input type="password" id="password" placeholder="Password" required>
+                <button type="submit">Login</button>
+                <div id="login-error" class="hidden"></div>
+            </form>
+        </div>
+
+        <div id="dashboard" class="hidden">
+            <h2>Dashboard</h2>
+            <div id="controls"></div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
